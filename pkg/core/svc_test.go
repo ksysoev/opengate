@@ -1,69 +1,75 @@
+//go:build !compile
+
 package core
 
 import (
+	"context"
 	"testing"
 
+	"github.com/ksysoev/opengate/pkg/spec"
 	"github.com/stretchr/testify/assert"
-	mock "github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
-func TestNew(t *testing.T) {
-	users := NewMockuserRepo(t)
-	someAPI := NewMocksomeAPIProv(t)
-	svc := New(users, someAPI)
-
-	assert.NotNil(t, svc, "New() should return a non-nil Service instance")
-}
-
-func TestService_CheckHealth(t *testing.T) {
+func TestService_LoadSpec(t *testing.T) {
 	tests := []struct {
-		setupMocks func(t *testing.T, users *MockuserRepo, someAPI *MocksomeAPIProv)
-		name       string
-		wantErr    bool
+		setupMock func(t *testing.T, parser *MockspecParser)
+		name      string
+		specPath  string
+		wantErr   bool
 	}{
 		{
-			name: "Success",
-			setupMocks: func(t *testing.T, users *MockuserRepo, someAPI *MocksomeAPIProv) {
+			name:     "Success",
+			specPath: "/path/to/spec.json",
+			setupMock: func(t *testing.T, parser *MockspecParser) {
 				t.Helper()
-				users.EXPECT().CheckHealth(mock.Anything).Return(nil)
-				someAPI.EXPECT().CheckHealth(mock.Anything).Return(nil)
+				parser.EXPECT().ParseFile("/path/to/spec.json").Return([]spec.Route{
+					{Path: "/users", Method: "GET"},
+					{Path: "/users/{id}", Method: "GET"},
+				}, nil)
 			},
 			wantErr: false,
 		},
 		{
-			name: "userRepo failure",
-			setupMocks: func(t *testing.T, users *MockuserRepo, someAPI *MocksomeAPIProv) {
+			name:     "Parse error",
+			specPath: "/path/to/invalid.json",
+			setupMock: func(t *testing.T, parser *MockspecParser) {
 				t.Helper()
-				users.EXPECT().CheckHealth(mock.Anything).Return(assert.AnError)
-				someAPI.EXPECT().CheckHealth(mock.Anything).Return(nil)
-			},
-			wantErr: true,
-		},
-		{
-			name: "someAPI failure",
-			setupMocks: func(t *testing.T, users *MockuserRepo, someAPI *MocksomeAPIProv) {
-				t.Helper()
-				users.EXPECT().CheckHealth(mock.Anything).Return(nil)
-				someAPI.EXPECT().CheckHealth(mock.Anything).Return(assert.AnError)
+				parser.EXPECT().ParseFile("/path/to/invalid.json").Return(nil, assert.AnError)
 			},
 			wantErr: true,
 		},
 	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			users := NewMockuserRepo(t)
-			someAPI := NewMocksomeAPIProv(t)
-			s := New(users, someAPI)
+			parser := NewMockspecParser(t)
+			tt.setupMock(t, parser)
 
-			tt.setupMocks(t, users, someAPI)
-
-			err := s.CheckHealth(t.Context())
+			svc := New(parser)
+			err := svc.LoadSpec(context.Background(), tt.specPath)
 
 			if tt.wantErr {
-				assert.Error(t, err, "CheckHealth() should return an error")
+				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err, "CheckHealth() should not return an error")
+				assert.NoError(t, err)
 			}
 		})
 	}
+}
+
+func TestService_GetRoutes(t *testing.T) {
+	parser := NewMockspecParser(t)
+	parser.EXPECT().ParseFile("/path/to/spec.json").Return([]spec.Route{
+		{Path: "/users", Method: "GET"},
+		{Path: "/posts", Method: "POST"},
+	}, nil)
+
+	svc := New(parser)
+	require.NoError(t, svc.LoadSpec(context.Background(), "/path/to/spec.json"))
+
+	routes := svc.GetRoutes(context.Background())
+	assert.Len(t, routes, 2)
+	assert.Equal(t, "/users", routes[0].Path)
+	assert.Equal(t, "GET", routes[0].Method)
 }

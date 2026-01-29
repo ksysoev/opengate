@@ -3,40 +3,43 @@ package core
 
 import (
 	"context"
+	"fmt"
 
-	"golang.org/x/sync/errgroup"
+	"github.com/ksysoev/opengate/pkg/spec"
 )
 
-// userRepo defines the interface for user repository operations.
-type userRepo interface {
-	CheckHealth(ctx context.Context) error
-}
-
-// someAPIProv defines the interface for a provider that can check health status.
-type someAPIProv interface {
-	CheckHealth(ctx context.Context) error
+// specParser defines the interface for parsing OpenAPI specifications.
+type specParser interface {
+	ParseFile(filePath string) ([]spec.Route, error)
 }
 
 // Service encapsulates core business logic and dependencies.
 type Service struct {
-	users   userRepo
-	someAPI someAPIProv
+	parser specParser
+	routes []spec.Route
 }
 
-// New creates a new Service instance with the provided userRepo and someAPI.
-func New(users userRepo, someAPI someAPIProv) *Service {
+// New creates a new Service instance with the provided dependencies.
+func New(parser specParser) *Service {
 	return &Service{
-		users:   users,
-		someAPI: someAPI,
+		parser: parser,
+		routes: make([]spec.Route, 0),
 	}
 }
 
-// CheckHealth checks the health of the core service and its dependencies.
-func (s *Service) CheckHealth(ctx context.Context) error {
-	eg, ctx := errgroup.WithContext(ctx)
+// LoadSpec loads routes from an OpenAPI specification file.
+func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
+	routes, err := s.parser.ParseFile(specPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse spec file: %w", err)
+	}
 
-	eg.Go(func() error { return s.someAPI.CheckHealth(ctx) })
-	eg.Go(func() error { return s.users.CheckHealth(ctx) })
+	s.routes = routes
 
-	return eg.Wait()
+	return nil
+}
+
+// GetRoutes returns all loaded routes.
+func (s *Service) GetRoutes(ctx context.Context) []spec.Route {
+	return s.routes
 }

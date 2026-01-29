@@ -3,12 +3,15 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"net/http"
 
 	"github.com/ksysoev/opengate/pkg/api"
+	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
-	"github.com/ksysoev/opengate/pkg/prov/someapi"
-	"github.com/ksysoev/opengate/pkg/repo/user"
-	"github.com/redis/go-redis/v9"
+	"github.com/ksysoev/opengate/pkg/proxy"
+	"github.com/ksysoev/opengate/pkg/router"
+	"github.com/ksysoev/opengate/pkg/spec"
 )
 
 // RunCommand initializes the logger, loads configuration, creates the core and API services,
@@ -23,19 +26,72 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     cfg.Redis.Addr,
-		Password: cfg.Redis.Password,
-	})
+	if cfg.Gateway.SpecPath == "" {
+		return fmt.Errorf("gateway spec path must be specified")
+	}
 
-	someAPI := someapi.New(cfg.Provider.SomeAPI)
-	userRepo := user.New(rdb)
-	svc := core.New(userRepo, someAPI)
+	// Create dependencies
+	parser := spec.NewParser()
+	svc := core.New(parser)
+
+	// Load OpenAPI specification
+	if err := svc.LoadSpec(ctx, cfg.Gateway.SpecPath); err != nil {
+		return fmt.Errorf("failed to load OpenAPI spec: %w", err)
+	}
+
+	routes := svc.GetRoutes(ctx)
+	slog.Info("Loaded routes from OpenAPI spec", "count", len(routes))
+
+	// Create router and register routes
+	rtr := router.New()
+	for _, route := range routes {
+		if err := rtr.AddRoute(route); err != nil {
+			return fmt.Errorf("failed to add route: %w", err)
+		}
+
+		slog.Debug("Registered route",
+			"method", route.Method,
+			"path", route.Path,
+			"backend", route.Handler.BaseURL,
+			"operation_id", route.OperationID)
+	}
+
+	// Create proxy handler
+	proxyHandler := proxy.New()
+
+	// Build middleware chain
+	withReqID := middleware.NewReqID()
+
+	handler := withReqID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// First, match the route
+		route, params, err := rtr.Match(r.Method, r.URL.Path)
+		if err != nil {
+			slog.DebugContext(r.Context(), "No matching route",
+				"method", r.Method,
+				"path", r.URL.Path)
+			http.Error(w, "Not Found", http.StatusNotFound)
+
+			return
+		}
+
+		// Store route and params in context
+		ctx := r.Context()
+		for key, value := range params {
+			ctx = router.WithPathParam(ctx, key, value)
+		}
+
+		ctx = router.WithRoute(ctx, route)
+
+		// Forward to proxy handler
+		proxyHandler.ServeHTTP(w, r.WithContext(ctx))
+	}))
 
 	apiSvc, err := api.New(cfg.API, svc)
 	if err != nil {
 		return fmt.Errorf("failed to create API service: %w", err)
 	}
+
+	apiSvc.SetMux(handler)
 
 	err = apiSvc.Run(ctx)
 	if err != nil {

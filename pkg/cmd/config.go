@@ -6,23 +6,16 @@ import (
 	"strings"
 
 	"github.com/ksysoev/opengate/pkg/api"
-	"github.com/ksysoev/opengate/pkg/prov/someapi"
 	"github.com/spf13/viper"
 )
 
 type appConfig struct {
-	API      api.Config  `mapstructure:"api"`
-	Redis    RedisConfig `mapstructure:"redis"`
-	Provider Provider    `mapstructure:"provider"`
+	API     api.Config    `mapstructure:"api"`
+	Gateway GatewayConfig `mapstructure:"gateway"`
 }
 
-type RedisConfig struct {
-	Addr     string `mapstructure:"addr"`
-	Password string `mapstructure:"password"`
-}
-
-type Provider struct {
-	SomeAPI someapi.Config `mapstructure:"some_api"`
+type GatewayConfig struct {
+	SpecPath string `mapstructure:"spec_path"`
 }
 
 // loadConfig loads the application configuration from the specified file path and environment variables.

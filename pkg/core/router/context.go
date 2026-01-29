@@ -3,7 +3,7 @@ package router
 import (
 	"context"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 type keyPathParam struct{}
@@ -43,21 +43,21 @@ func GetPathParam(ctx context.Context, key string) string {
 }
 
 // withRoute adds the matched route to the context.
-func withRoute(ctx context.Context, route *spec.Route) context.Context {
-	return context.WithValue(ctx, keyRoute{}, route)
+func withRoute(ctx context.Context, rt *route.Route) context.Context {
+	return context.WithValue(ctx, keyRoute{}, rt)
 }
 
 // WithRoute adds the matched route to the context (exported).
-func WithRoute(ctx context.Context, route *spec.Route) context.Context {
-	return withRoute(ctx, route)
+func WithRoute(ctx context.Context, rt *route.Route) context.Context {
+	return withRoute(ctx, rt)
 }
 
 // GetRoute retrieves the matched route from the context.
-func GetRoute(ctx context.Context) *spec.Route {
-	route, ok := ctx.Value(keyRoute{}).(*spec.Route)
+func GetRoute(ctx context.Context) *route.Route {
+	rt, ok := ctx.Value(keyRoute{}).(*route.Route)
 	if !ok {
 		return nil
 	}
 
-	return route
+	return rt
 }

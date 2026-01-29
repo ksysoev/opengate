@@ -5,7 +5,7 @@
 package core
 
 import (
-	spec "github.com/ksysoev/opengate/pkg/spec"
+	route "github.com/ksysoev/opengate/pkg/core/route"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -23,23 +23,23 @@ func (_m *MockspecParser) EXPECT() *MockspecParser_Expecter {
 }
 
 // ParseFile provides a mock function with given fields: filePath
-func (_m *MockspecParser) ParseFile(filePath string) ([]spec.Route, error) {
+func (_m *MockspecParser) ParseFile(filePath string) ([]route.Route, error) {
 	ret := _m.Called(filePath)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ParseFile")
 	}
 
-	var r0 []spec.Route
+	var r0 []route.Route
 	var r1 error
-	if rf, ok := ret.Get(0).(func(string) ([]spec.Route, error)); ok {
+	if rf, ok := ret.Get(0).(func(string) ([]route.Route, error)); ok {
 		return rf(filePath)
 	}
-	if rf, ok := ret.Get(0).(func(string) []spec.Route); ok {
+	if rf, ok := ret.Get(0).(func(string) []route.Route); ok {
 		r0 = rf(filePath)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]spec.Route)
+			r0 = ret.Get(0).([]route.Route)
 		}
 	}
 
@@ -70,12 +70,12 @@ func (_c *MockspecParser_ParseFile_Call) Run(run func(filePath string)) *Mockspe
 	return _c
 }
 
-func (_c *MockspecParser_ParseFile_Call) Return(_a0 []spec.Route, _a1 error) *MockspecParser_ParseFile_Call {
+func (_c *MockspecParser_ParseFile_Call) Return(_a0 []route.Route, _a1 error) *MockspecParser_ParseFile_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockspecParser_ParseFile_Call) RunAndReturn(run func(string) ([]spec.Route, error)) *MockspecParser_ParseFile_Call {
+func (_c *MockspecParser_ParseFile_Call) RunAndReturn(run func(string) ([]route.Route, error)) *MockspecParser_ParseFile_Call {
 	_c.Call.Return(run)
 	return _c
 }

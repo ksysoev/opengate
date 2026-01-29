@@ -7,7 +7,7 @@ package api
 import (
 	context "context"
 
-	spec "github.com/ksysoev/opengate/pkg/spec"
+	route "github.com/ksysoev/opengate/pkg/core/route"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -25,19 +25,19 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 }
 
 // GetRoutes provides a mock function with given fields: ctx
-func (_m *MockService) GetRoutes(ctx context.Context) []spec.Route {
+func (_m *MockService) GetRoutes(ctx context.Context) []route.Route {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetRoutes")
 	}
 
-	var r0 []spec.Route
-	if rf, ok := ret.Get(0).(func(context.Context) []spec.Route); ok {
+	var r0 []route.Route
+	if rf, ok := ret.Get(0).(func(context.Context) []route.Route); ok {
 		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]spec.Route)
+			r0 = ret.Get(0).([]route.Route)
 		}
 	}
 
@@ -62,12 +62,12 @@ func (_c *MockService_GetRoutes_Call) Run(run func(ctx context.Context)) *MockSe
 	return _c
 }
 
-func (_c *MockService_GetRoutes_Call) Return(_a0 []spec.Route) *MockService_GetRoutes_Call {
+func (_c *MockService_GetRoutes_Call) Return(_a0 []route.Route) *MockService_GetRoutes_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockService_GetRoutes_Call) RunAndReturn(run func(context.Context) []spec.Route) *MockService_GetRoutes_Call {
+func (_c *MockService_GetRoutes_Call) RunAndReturn(run func(context.Context) []route.Route) *MockService_GetRoutes_Call {
 	_c.Call.Return(run)
 	return _c
 }

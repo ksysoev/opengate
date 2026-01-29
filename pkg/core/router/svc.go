@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 // Router handles dynamic routing based on OpenAPI specification.
@@ -18,7 +18,7 @@ type Router struct {
 type routeEntry struct {
 	pattern *regexp.Regexp
 	method  string
-	route   spec.Route
+	route   route.Route
 	params  []string
 }
 
@@ -30,16 +30,16 @@ func New() *Router {
 }
 
 // AddRoute adds a route to the router.
-func (r *Router) AddRoute(route spec.Route) error {
-	pattern, params, err := pathToRegex(route.Path)
+func (r *Router) AddRoute(rt route.Route) error {
+	pattern, params, err := pathToRegex(rt.Path)
 	if err != nil {
 		return fmt.Errorf("failed to convert path to regex: %w", err)
 	}
 
 	entry := routeEntry{
 		pattern: pattern,
-		method:  route.Method,
-		route:   route,
+		method:  rt.Method,
+		route:   rt,
 		params:  params,
 	}
 
@@ -50,7 +50,7 @@ func (r *Router) AddRoute(route spec.Route) error {
 
 // Match finds a matching route for the given request.
 // Returns the route and path parameters if found, or an error if no match is found.
-func (r *Router) Match(method, path string) (*spec.Route, map[string]string, error) {
+func (r *Router) Match(method, path string) (*route.Route, map[string]string, error) {
 	for _, entry := range r.routes {
 		if entry.method != method {
 			continue
@@ -104,8 +104,8 @@ func pathToRegex(path string) (*regexp.Regexp, []string, error) {
 }
 
 // GetRoutes returns all registered routes.
-func (r *Router) GetRoutes() []spec.Route {
-	routes := make([]spec.Route, len(r.routes))
+func (r *Router) GetRoutes() []route.Route {
+	routes := make([]route.Route, len(r.routes))
 	for i, entry := range r.routes {
 		routes[i] = entry.route
 	}
@@ -115,7 +115,7 @@ func (r *Router) GetRoutes() []spec.Route {
 
 // ServeHTTP implements http.Handler interface for the router.
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	route, params, err := r.Match(req.Method, req.URL.Path)
+	matchedRoute, params, err := r.Match(req.Method, req.URL.Path)
 	if err != nil {
 		http.Error(w, "Not Found", http.StatusNotFound)
 		return
@@ -129,7 +129,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 	// Continue processing - the actual forwarding will be handled by the proxy handler
 	// Store the matched route in context for the proxy handler to use
-	ctx = withRoute(ctx, route)
+	ctx = withRoute(ctx, matchedRoute)
 	_ = req.WithContext(ctx)
 
 	// If there's no next handler in the chain, this is the end

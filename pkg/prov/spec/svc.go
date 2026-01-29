@@ -5,20 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
-
-// Route represents a single API route extracted from OpenAPI specification.
-type Route struct {
-	Path        string
-	Method      string
-	OperationID string
-	Handler     Handler
-}
-
-// Handler contains the routing configuration for a route.
-type Handler struct {
-	BaseURL string
-}
 
 // OpenAPISpec represents the OpenAPI specification structure.
 type OpenAPISpec struct {
@@ -76,7 +65,7 @@ func NewParser() *Parser {
 }
 
 // ParseFile parses an OpenAPI specification from a file and returns a list of routes.
-func (p *Parser) ParseFile(filePath string) ([]Route, error) {
+func (p *Parser) ParseFile(filePath string) ([]route.Route, error) {
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read spec file: %w", err)
@@ -86,13 +75,13 @@ func (p *Parser) ParseFile(filePath string) ([]Route, error) {
 }
 
 // Parse parses an OpenAPI specification from raw bytes and returns a list of routes.
-func (p *Parser) Parse(data []byte) ([]Route, error) {
+func (p *Parser) Parse(data []byte) ([]route.Route, error) {
 	var spec OpenAPISpec
 	if err := json.Unmarshal(data, &spec); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal spec: %w", err)
 	}
 
-	routes := make([]Route, 0)
+	routes := make([]route.Route, 0)
 
 	for path, pathItem := range spec.Paths {
 		routes = append(routes, p.extractRoutes(path, pathItem)...)
@@ -102,8 +91,8 @@ func (p *Parser) Parse(data []byte) ([]Route, error) {
 }
 
 // extractRoutes extracts all routes from a PathItem.
-func (p *Parser) extractRoutes(path string, pathItem PathItem) []Route {
-	routes := make([]Route, 0)
+func (p *Parser) extractRoutes(path string, pathItem PathItem) []route.Route {
+	routes := make([]route.Route, 0)
 
 	if pathItem.Get != nil {
 		routes = append(routes, p.createRoute(path, "GET", pathItem.Get))
@@ -129,18 +118,18 @@ func (p *Parser) extractRoutes(path string, pathItem PathItem) []Route {
 }
 
 // createRoute creates a Route from an Operation.
-func (p *Parser) createRoute(path, method string, op *Operation) Route {
-	route := Route{
+func (p *Parser) createRoute(path, method string, op *Operation) route.Route {
+	r := route.Route{
 		Path:        path,
 		Method:      method,
 		OperationID: op.OperationID,
 	}
 
 	if op.XOpenGate != nil && op.XOpenGate.Handler.Options.BaseURL != "" {
-		route.Handler = Handler{
+		r.Handler = route.Handler{
 			BaseURL: op.XOpenGate.Handler.Options.BaseURL,
 		}
 	}
 
-	return route
+	return r
 }

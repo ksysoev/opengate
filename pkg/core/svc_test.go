@@ -6,7 +6,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,7 +23,7 @@ func TestService_LoadSpec(t *testing.T) {
 			specPath: "/path/to/spec.json",
 			setupMock: func(t *testing.T, parser *MockspecParser) {
 				t.Helper()
-				parser.EXPECT().ParseFile("/path/to/spec.json").Return([]spec.Route{
+				parser.EXPECT().ParseFile("/path/to/spec.json").Return([]route.Route{
 					{Path: "/users", Method: "GET"},
 					{Path: "/users/{id}", Method: "GET"},
 				}, nil)
@@ -60,7 +60,7 @@ func TestService_LoadSpec(t *testing.T) {
 
 func TestService_GetRoutes(t *testing.T) {
 	parser := NewMockspecParser(t)
-	parser.EXPECT().ParseFile("/path/to/spec.json").Return([]spec.Route{
+	parser.EXPECT().ParseFile("/path/to/spec.json").Return([]route.Route{
 		{Path: "/users", Method: "GET"},
 		{Path: "/posts", Method: "POST"},
 	}, nil)

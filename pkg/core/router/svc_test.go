@@ -5,7 +5,7 @@ package router
 import (
 	"testing"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,15 +13,15 @@ import (
 func TestRouter_AddRoute(t *testing.T) {
 	tests := []struct {
 		name    string
-		route   spec.Route
+		route   route.Route
 		wantErr bool
 	}{
 		{
 			name: "Simple route",
-			route: spec.Route{
+			route: route.Route{
 				Path:   "/users",
 				Method: "GET",
-				Handler: spec.Handler{
+				Handler: route.Handler{
 					BaseURL: "http://backend.com",
 				},
 			},
@@ -29,10 +29,10 @@ func TestRouter_AddRoute(t *testing.T) {
 		},
 		{
 			name: "Route with path parameter",
-			route: spec.Route{
+			route: route.Route{
 				Path:   "/users/{id}",
 				Method: "GET",
-				Handler: spec.Handler{
+				Handler: route.Handler{
 					BaseURL: "http://backend.com",
 				},
 			},
@@ -40,10 +40,10 @@ func TestRouter_AddRoute(t *testing.T) {
 		},
 		{
 			name: "Route with multiple parameters",
-			route: spec.Route{
+			route: route.Route{
 				Path:   "/users/{userId}/posts/{postId}",
 				Method: "GET",
-				Handler: spec.Handler{
+				Handler: route.Handler{
 					BaseURL: "http://backend.com",
 				},
 			},
@@ -72,13 +72,13 @@ func TestRouter_Match(t *testing.T) {
 		method      string
 		path        string
 		wantBaseURL string
-		routes      []spec.Route
+		routes      []route.Route
 		wantMatch   bool
 	}{
 		{
 			name: "Exact match",
-			routes: []spec.Route{
-				{Path: "/users", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend.com"}},
+			routes: []route.Route{
+				{Path: "/users", Method: "GET", Handler: route.Handler{BaseURL: "http://backend.com"}},
 			},
 			method:      "GET",
 			path:        "/users",
@@ -88,8 +88,8 @@ func TestRouter_Match(t *testing.T) {
 		},
 		{
 			name: "Match with single parameter",
-			routes: []spec.Route{
-				{Path: "/users/{id}", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend.com"}},
+			routes: []route.Route{
+				{Path: "/users/{id}", Method: "GET", Handler: route.Handler{BaseURL: "http://backend.com"}},
 			},
 			method:      "GET",
 			path:        "/users/123",
@@ -99,8 +99,8 @@ func TestRouter_Match(t *testing.T) {
 		},
 		{
 			name: "Match with multiple parameters",
-			routes: []spec.Route{
-				{Path: "/users/{userId}/posts/{postId}", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend.com"}},
+			routes: []route.Route{
+				{Path: "/users/{userId}/posts/{postId}", Method: "GET", Handler: route.Handler{BaseURL: "http://backend.com"}},
 			},
 			method:      "GET",
 			path:        "/users/123/posts/456",
@@ -110,8 +110,8 @@ func TestRouter_Match(t *testing.T) {
 		},
 		{
 			name: "No match - wrong method",
-			routes: []spec.Route{
-				{Path: "/users", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend.com"}},
+			routes: []route.Route{
+				{Path: "/users", Method: "GET", Handler: route.Handler{BaseURL: "http://backend.com"}},
 			},
 			method:    "POST",
 			path:      "/users",
@@ -119,8 +119,8 @@ func TestRouter_Match(t *testing.T) {
 		},
 		{
 			name: "No match - wrong path",
-			routes: []spec.Route{
-				{Path: "/users", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend.com"}},
+			routes: []route.Route{
+				{Path: "/users", Method: "GET", Handler: route.Handler{BaseURL: "http://backend.com"}},
 			},
 			method:    "GET",
 			path:      "/posts",
@@ -128,9 +128,9 @@ func TestRouter_Match(t *testing.T) {
 		},
 		{
 			name: "Match first matching route",
-			routes: []spec.Route{
-				{Path: "/users/{id}", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend1.com"}},
-				{Path: "/users/{id}", Method: "GET", Handler: spec.Handler{BaseURL: "http://backend2.com"}},
+			routes: []route.Route{
+				{Path: "/users/{id}", Method: "GET", Handler: route.Handler{BaseURL: "http://backend1.com"}},
+				{Path: "/users/{id}", Method: "GET", Handler: route.Handler{BaseURL: "http://backend2.com"}},
 			},
 			method:      "GET",
 			path:        "/users/123",
@@ -147,19 +147,19 @@ func TestRouter_Match(t *testing.T) {
 				require.NoError(t, r.AddRoute(route))
 			}
 
-			route, params, err := r.Match(tt.method, tt.path)
+			matchedRoute, params, err := r.Match(tt.method, tt.path)
 
 			if !tt.wantMatch {
 				assert.Error(t, err)
-				assert.Nil(t, route)
+				assert.Nil(t, matchedRoute)
 
 				return
 			}
 
 			require.NoError(t, err)
-			require.NotNil(t, route)
+			require.NotNil(t, matchedRoute)
 			assert.Equal(t, tt.wantParams, params)
-			assert.Equal(t, tt.wantBaseURL, route.Handler.BaseURL)
+			assert.Equal(t, tt.wantBaseURL, matchedRoute.Handler.BaseURL)
 		})
 	}
 }
@@ -167,7 +167,7 @@ func TestRouter_Match(t *testing.T) {
 func TestRouter_GetRoutes(t *testing.T) {
 	r := New()
 
-	routes := []spec.Route{
+	routes := []route.Route{
 		{Path: "/users", Method: "GET"},
 		{Path: "/users/{id}", Method: "GET"},
 		{Path: "/posts", Method: "POST"},

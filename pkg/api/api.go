@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 const (
@@ -27,7 +27,7 @@ type Config struct {
 
 type Service interface {
 	LoadSpec(ctx context.Context, specPath string) error
-	GetRoutes(ctx context.Context) []spec.Route
+	GetRoutes(ctx context.Context) []route.Route
 }
 
 // New creates a new API instance with the provided configuration and service.

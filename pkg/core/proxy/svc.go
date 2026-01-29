@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ksysoev/opengate/pkg/router"
+	"github.com/ksysoev/opengate/pkg/core/router"
 )
 
 const (

@@ -9,9 +9,9 @@ import (
 	"github.com/ksysoev/opengate/pkg/api"
 	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
-	"github.com/ksysoev/opengate/pkg/proxy"
-	"github.com/ksysoev/opengate/pkg/router"
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/proxy"
+	"github.com/ksysoev/opengate/pkg/core/router"
+	"github.com/ksysoev/opengate/pkg/prov/spec"
 )
 
 // RunCommand initializes the logger, loads configuration, creates the core and API services,

@@ -5,25 +5,25 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/ksysoev/opengate/pkg/spec"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 // specParser defines the interface for parsing OpenAPI specifications.
 type specParser interface {
-	ParseFile(filePath string) ([]spec.Route, error)
+	ParseFile(filePath string) ([]route.Route, error)
 }
 
 // Service encapsulates core business logic and dependencies.
 type Service struct {
 	parser specParser
-	routes []spec.Route
+	routes []route.Route
 }
 
 // New creates a new Service instance with the provided dependencies.
 func New(parser specParser) *Service {
 	return &Service{
 		parser: parser,
-		routes: make([]spec.Route, 0),
+		routes: make([]route.Route, 0),
 	}
 }
 
@@ -40,6 +40,6 @@ func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 }
 
 // GetRoutes returns all loaded routes.
-func (s *Service) GetRoutes(ctx context.Context) []spec.Route {
+func (s *Service) GetRoutes(ctx context.Context) []route.Route {
 	return s.routes
 }

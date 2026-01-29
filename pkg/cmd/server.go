@@ -11,7 +11,7 @@ import (
 	"github.com/ksysoev/opengate/pkg/core"
 	"github.com/ksysoev/opengate/pkg/core/proxy"
 	"github.com/ksysoev/opengate/pkg/core/router"
-	"github.com/ksysoev/opengate/pkg/prov/spec"
+	"github.com/ksysoev/opengate/pkg/spec"
 )
 
 // RunCommand initializes the logger, loads configuration, creates the core and API services,

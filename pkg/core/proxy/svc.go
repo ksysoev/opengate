@@ -166,7 +166,13 @@ func (h *Handler) isHopByHopHeader(header string) bool {
 
 // setForwardedHeaders sets X-Forwarded-* headers.
 func (h *Handler) setForwardedHeaders(proxyReq, originalReq *http.Request) {
-	if clientIP := h.getClientIP(originalReq); clientIP != "" {
+	// Use RemoteAddr as the source of truth to prevent IP spoofing
+	clientIP := h.extractClientIP(originalReq.RemoteAddr)
+
+	// Append to existing X-Forwarded-For if present
+	if xff := originalReq.Header.Get("X-Forwarded-For"); xff != "" {
+		proxyReq.Header.Set("X-Forwarded-For", xff+", "+clientIP)
+	} else {
 		proxyReq.Header.Set("X-Forwarded-For", clientIP)
 	}
 
@@ -181,24 +187,14 @@ func (h *Handler) setForwardedHeaders(proxyReq, originalReq *http.Request) {
 	}
 }
 
-// getClientIP extracts the client IP from the request.
-func (h *Handler) getClientIP(r *http.Request) string {
-	// Check X-Forwarded-For header first
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Take the first IP in the list
-		if idx := strings.Index(xff, ","); idx > 0 {
-			return strings.TrimSpace(xff[:idx])
-		}
-
-		return strings.TrimSpace(xff)
+// extractClientIP extracts the IP address from RemoteAddr.
+func (h *Handler) extractClientIP(remoteAddr string) string {
+	// RemoteAddr is in format "IP:port"
+	if idx := strings.LastIndex(remoteAddr, ":"); idx > 0 {
+		return remoteAddr[:idx]
 	}
 
-	// Fall back to RemoteAddr
-	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx > 0 {
-		return r.RemoteAddr[:idx]
-	}
-
-	return r.RemoteAddr
+	return remoteAddr
 }
 
 // copyResponse copies the backend response to the client.

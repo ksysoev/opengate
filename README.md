@@ -169,9 +169,9 @@ cmd/opengate/          - Entry point
 pkg/
   ├── api/             - HTTP server layer
   ├── core/            - Business logic
+  │   ├── router/      - Dynamic routing engine
+  │   └── proxy/       - HTTP request forwarding
   ├── spec/            - OpenAPI specification parsing
-  ├── router/          - Dynamic routing engine
-  ├── proxy/           - HTTP request forwarding
   └── cmd/             - CLI and configuration
 ```
 

@@ -3,7 +3,6 @@ package router
 
 import (
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 
@@ -111,27 +110,4 @@ func (r *Router) GetRoutes() []route.Route {
 	}
 
 	return routes
-}
-
-// ServeHTTP implements http.Handler interface for the router.
-func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	matchedRoute, params, err := r.Match(req.Method, req.URL.Path)
-	if err != nil {
-		http.Error(w, "Not Found", http.StatusNotFound)
-		return
-	}
-
-	// Store path parameters in request context for use by handlers
-	ctx := req.Context()
-	for key, value := range params {
-		ctx = withPathParam(ctx, key, value)
-	}
-
-	// Continue processing - the actual forwarding will be handled by the proxy handler
-	// Store the matched route in context for the proxy handler to use
-	ctx = withRoute(ctx, matchedRoute)
-	_ = req.WithContext(ctx)
-
-	// If there's no next handler in the chain, this is the end
-	http.Error(w, "Internal Server Error", http.StatusInternalServerError)
 }

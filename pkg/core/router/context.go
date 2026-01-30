@@ -10,10 +10,19 @@ type keyPathParam struct{}
 type keyRoute struct{}
 
 // withPathParam adds a path parameter to the context.
+// Creates a new map to avoid mutating existing context state.
 func withPathParam(ctx context.Context, key, value string) context.Context {
 	params, ok := ctx.Value(keyPathParam{}).(map[string]string)
 	if !ok {
 		params = make(map[string]string)
+	} else {
+		// Create a copy to avoid mutating the existing map
+		newParams := make(map[string]string, len(params)+1)
+		for k, v := range params {
+			newParams[k] = v
+		}
+
+		params = newParams
 	}
 
 	params[key] = value
@@ -27,13 +36,20 @@ func WithPathParam(ctx context.Context, key, value string) context.Context {
 }
 
 // GetPathParams retrieves all path parameters from the context.
+// Returns a copy to prevent mutation of context state.
 func GetPathParams(ctx context.Context) map[string]string {
 	params, ok := ctx.Value(keyPathParam{}).(map[string]string)
 	if !ok {
 		return make(map[string]string)
 	}
 
-	return params
+	// Return a defensive copy
+	result := make(map[string]string, len(params))
+	for k, v := range params {
+		result[k] = v
+	}
+
+	return result
 }
 
 // GetPathParam retrieves a specific path parameter from the context.

@@ -40,6 +40,10 @@ func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 }
 
 // GetRoutes returns all loaded routes.
+// Returns a copy to prevent external mutation of internal state.
 func (s *Service) GetRoutes(ctx context.Context) []route.Route {
-	return s.routes
+	routes := make([]route.Route, len(s.routes))
+	copy(routes, s.routes)
+
+	return routes
 }

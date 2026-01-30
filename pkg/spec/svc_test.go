@@ -26,17 +26,15 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "get-users",
 							"x-opengate": {
-								"handler": {
-									"options": {"baseUrl": "http://backend.com"}
-								}
+								"type": "forward",
+								"options": {"url": "http://backend.com"}
 							}
 						},
 						"post": {
 							"operationId": "create-user",
 							"x-opengate": {
-								"handler": {
-									"options": {"baseUrl": "http://backend.com"}
-								}
+								"type": "forward",
+								"options": {"url": "http://backend.com"}
 							}
 						}
 					},
@@ -44,9 +42,8 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "get-user",
 							"x-opengate": {
-								"handler": {
-									"options": {"baseUrl": "http://backend.com"}
-								}
+								"type": "forward",
+								"options": {"url": "http://backend.com"}
 							}
 						}
 					}
@@ -113,10 +110,9 @@ func TestParser_CreateRoute(t *testing.T) {
 			operation: &Operation{
 				OperationID: "get-users",
 				XOpenGate: &OpenGateExt{
-					Handler: HandlerConfig{
-						Options: HandlerOptions{
-							BaseURL: "http://backend.com",
-						},
+					Type: "forward",
+					Options: HandlerOptions{
+						URL: "http://backend.com",
 					},
 				},
 			},

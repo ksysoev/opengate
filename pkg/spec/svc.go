@@ -41,19 +41,13 @@ type Operation struct {
 
 // OpenGateExt represents the OpenGate-specific routing configuration extension.
 type OpenGateExt struct {
-	Handler HandlerConfig `json:"handler"`
-}
-
-// HandlerConfig represents the handler configuration.
-type HandlerConfig struct {
-	Export  string         `json:"export,omitempty"`
-	Module  string         `json:"module,omitempty"`
+	Type    string         `json:"type"`
 	Options HandlerOptions `json:"options"`
 }
 
 // HandlerOptions represents the handler options.
 type HandlerOptions struct {
-	BaseURL string `json:"baseUrl"`
+	URL string `json:"url"`
 }
 
 // Parser handles parsing of OpenAPI specifications.
@@ -125,9 +119,9 @@ func (p *Parser) createRoute(path, method string, op *Operation) route.Route {
 		OperationID: op.OperationID,
 	}
 
-	if op.XOpenGate != nil && op.XOpenGate.Handler.Options.BaseURL != "" {
+	if op.XOpenGate != nil && op.XOpenGate.Options.URL != "" {
 		r.Handler = route.Handler{
-			BaseURL: op.XOpenGate.Handler.Options.BaseURL,
+			BaseURL: op.XOpenGate.Options.URL,
 		}
 	}
 

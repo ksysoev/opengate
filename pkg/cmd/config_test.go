@@ -5,122 +5,138 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/ksysoev/opengate/pkg/api"
-	"github.com/ksysoev/opengate/pkg/prov/someapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestLoadConfig(t *testing.T) {
-	const validConfig = `
-api:
-  listen: ":8082"
-redis:
-  addr: "localhost:6379"
-  password: "testpassword"
-provider:
-  some_api:
-    base_url: "https://api.example.com"
-`
-
 	tests := []struct {
-		envVars      map[string]string
-		expectConfig *appConfig
 		name         string
-		configData   string
-		expectError  bool
+		configYAML   string
+		envVars      map[string]string
+		wantSpecPath string
+		wantListen   string
+		wantErr      bool
 	}{
 		{
-			name:        "valid config file",
-			envVars:     nil,
-			expectError: false,
-			configData:  validConfig,
-			expectConfig: &appConfig{
-				API: api.Config{
-					Listen: ":8082",
-				},
-				Redis: RedisConfig{
-					Addr:     "localhost:6379",
-					Password: "testpassword",
-				},
-				Provider: Provider{
-					SomeAPI: someapi.Config{
-						BaseURL: "https://api.example.com",
-					},
-				},
-			},
+			name: "Valid config file",
+			configYAML: `
+api:
+  listen: ":8080"
+gateway:
+  spec_path: "/path/to/spec.json"
+`,
+			wantSpecPath: "/path/to/spec.json",
+			wantListen:   ":8080",
+			wantErr:      false,
 		},
 		{
-			name:        "missing config file",
-			envVars:     nil,
-			expectError: true,
-		},
-		{
-			name:        "unparseable config file",
-			envVars:     nil,
-			expectError: true,
-			configData:  `invalid yaml`,
-		},
-		{
-			name: "valid config with environment overrides",
+			name: "Config with environment variable override",
+			configYAML: `
+api:
+  listen: ":8080"
+gateway:
+  spec_path: "/path/to/spec.json"
+`,
 			envVars: map[string]string{
-				"API_LISTEN":                 ":8083",
-				"PROVIDER_SOME_API_BASE_URL": "https://test.com",
+				"GATEWAY_SPEC_PATH": "/override/spec.json",
 			},
-			expectError: false,
-			configData:  validConfig,
-			expectConfig: &appConfig{
-				API: api.Config{
-					Listen: ":8083",
-				},
-				Redis: RedisConfig{
-					Addr:     "localhost:6379",
-					Password: "testpassword",
-				},
-				Provider: Provider{
-					SomeAPI: someapi.Config{
-						BaseURL: "https://test.com",
-					},
-				},
+			wantSpecPath: "/override/spec.json",
+			wantListen:   ":8080",
+			wantErr:      false,
+		},
+		{
+			name:       "Environment variables only",
+			configYAML: "",
+			envVars: map[string]string{
+				"API_LISTEN":        ":9090",
+				"GATEWAY_SPEC_PATH": "/env/spec.json",
 			},
+			wantSpecPath: "/env/spec.json",
+			wantListen:   ":9090",
+			wantErr:      false,
+		},
+		{
+			name: "Empty config file",
+			configYAML: `
+api:
+  listen: ""
+gateway:
+  spec_path: ""
+`,
+			wantSpecPath: "",
+			wantListen:   "",
+			wantErr:      false,
+		},
+		{
+			name: "Invalid YAML",
+			configYAML: `
+api:
+  listen: ":8080"
+  invalid yaml [[[
+`,
+			wantErr: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tmpDir := t.TempDir()
-			configPath := filepath.Join(tmpDir, "config.yaml")
+			// Create temporary config file if needed
+			var configPath string
 
-			if tt.configData != "" {
-				err := os.WriteFile(configPath, []byte(tt.configData), 0o600)
-
+			if tt.configYAML != "" {
+				tmpDir := t.TempDir()
+				configPath = filepath.Join(tmpDir, "config.yml")
+				err := os.WriteFile(configPath, []byte(tt.configYAML), 0o600)
 				require.NoError(t, err)
 			}
 
-			// Set up environment variables
-			if tt.envVars != nil {
-				for key, value := range tt.envVars {
-					_ = os.Setenv(key, value)
-
-					t.Cleanup(func() {
-						_ = os.Unsetenv(key)
-					})
-				}
+			// Set environment variables
+			for key, value := range tt.envVars {
+				t.Setenv(key, value)
 			}
 
-			arg := &cmdFlags{
+			// Load config
+			flags := &cmdFlags{
 				ConfigPath: configPath,
 			}
 
-			cfg, err := loadConfig(arg)
+			cfg, err := loadConfig(flags)
 
-			if tt.expectError {
+			if tt.wantErr {
 				assert.Error(t, err)
-				assert.Nil(t, cfg)
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tt.expectConfig, cfg)
+				return
 			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantSpecPath, cfg.Gateway.SpecPath)
+			assert.Equal(t, tt.wantListen, cfg.API.Listen)
 		})
 	}
+}
+
+func TestLoadConfig_NoConfigFile(t *testing.T) {
+	// Test loading with no config file (environment variables only)
+	t.Setenv("API_LISTEN", ":7070")
+	t.Setenv("GATEWAY_SPEC_PATH", "/test/spec.json")
+
+	flags := &cmdFlags{
+		ConfigPath: "", // No config file
+	}
+
+	cfg, err := loadConfig(flags)
+
+	require.NoError(t, err)
+	assert.Equal(t, "/test/spec.json", cfg.Gateway.SpecPath)
+	assert.Equal(t, ":7070", cfg.API.Listen)
+}
+
+func TestLoadConfig_NonExistentConfigFile(t *testing.T) {
+	flags := &cmdFlags{
+		ConfigPath: "/nonexistent/config.yml",
+	}
+
+	_, err := loadConfig(flags)
+
+	assert.Error(t, err)
 }

@@ -13,8 +13,5 @@ packages:
       Service:
   github.com/ksysoev/opengate/pkg/core:
     interfaces:
-      userRepo:
-      someAPIProv:
-  github.com/ksysoev/opengate/pkg/repo/user:
-    interfaces:
-      userDAO: 
+      specParser:
+ 

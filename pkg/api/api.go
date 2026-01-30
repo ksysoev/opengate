@@ -7,14 +7,17 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
+
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 const (
-	defaultTimeout = 5 * time.Second
+	defaultTimeout = 30 * time.Second
 )
 
 type API struct {
 	svc    Service
+	mux    http.Handler
 	config Config
 }
 
@@ -23,7 +26,8 @@ type Config struct {
 }
 
 type Service interface {
-	CheckHealth(ctx context.Context) error
+	LoadSpec(ctx context.Context, specPath string) error
+	GetRoutes(ctx context.Context) []route.Route
 }
 
 // New creates a new API instance with the provided configuration and service.
@@ -41,6 +45,11 @@ func New(cfg Config, svc Service) (*API, error) {
 	return api, nil
 }
 
+// SetMux sets the HTTP handler for the API.
+func (a *API) SetMux(mux http.Handler) {
+	a.mux = mux
+}
+
 // Run starts the API server with the provided configuration.
 // It listens on the address specified in the configuration and handles graceful shutdown.
 // The server will log any errors encountered during shutdown.
@@ -50,7 +59,7 @@ func (a *API) Run(ctx context.Context) error {
 		Addr:              a.config.Listen,
 		ReadHeaderTimeout: defaultTimeout,
 		WriteTimeout:      defaultTimeout,
-		Handler:           a.newMux(),
+		Handler:           a.mux,
 	}
 
 	go func() {
@@ -60,6 +69,8 @@ func (a *API) Run(ctx context.Context) error {
 
 		slog.WarnContext(ctx, "shutting down API server", "error", err)
 	}()
+
+	slog.Info("Starting API gateway", "addr", a.config.Listen)
 
 	if err := s.ListenAndServe(); err != http.ErrServerClosed {
 		return err

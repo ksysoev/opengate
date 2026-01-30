@@ -1,10 +1,5 @@
 api:
   listen: :8080
 
-redis:
-  addr: 127.0.0.1:6379
-  password:
-
-provider:
-  some_api:
-    base_url: http://example.com
+gateway:
+  spec_path: runtime/gateway.json

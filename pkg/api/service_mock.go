@@ -7,6 +7,7 @@ package api
 import (
 	context "context"
 
+	route "github.com/ksysoev/opengate/pkg/core/route"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -23,17 +24,65 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 	return &MockService_Expecter{mock: &_m.Mock}
 }
 
-// CheckHealth provides a mock function with given fields: ctx
-func (_m *MockService) CheckHealth(ctx context.Context) error {
+// GetRoutes provides a mock function with given fields: ctx
+func (_m *MockService) GetRoutes(ctx context.Context) []route.Route {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
-		panic("no return value specified for CheckHealth")
+		panic("no return value specified for GetRoutes")
+	}
+
+	var r0 []route.Route
+	if rf, ok := ret.Get(0).(func(context.Context) []route.Route); ok {
+		r0 = rf(ctx)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).([]route.Route)
+		}
+	}
+
+	return r0
+}
+
+// MockService_GetRoutes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRoutes'
+type MockService_GetRoutes_Call struct {
+	*mock.Call
+}
+
+// GetRoutes is a helper method to define mock.On call
+//   - ctx context.Context
+func (_e *MockService_Expecter) GetRoutes(ctx interface{}) *MockService_GetRoutes_Call {
+	return &MockService_GetRoutes_Call{Call: _e.mock.On("GetRoutes", ctx)}
+}
+
+func (_c *MockService_GetRoutes_Call) Run(run func(ctx context.Context)) *MockService_GetRoutes_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context))
+	})
+	return _c
+}
+
+func (_c *MockService_GetRoutes_Call) Return(_a0 []route.Route) *MockService_GetRoutes_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *MockService_GetRoutes_Call) RunAndReturn(run func(context.Context) []route.Route) *MockService_GetRoutes_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// LoadSpec provides a mock function with given fields: ctx, specPath
+func (_m *MockService) LoadSpec(ctx context.Context, specPath string) error {
+	ret := _m.Called(ctx, specPath)
+
+	if len(ret) == 0 {
+		panic("no return value specified for LoadSpec")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context) error); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, specPath)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -41,30 +90,31 @@ func (_m *MockService) CheckHealth(ctx context.Context) error {
 	return r0
 }
 
-// MockService_CheckHealth_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CheckHealth'
-type MockService_CheckHealth_Call struct {
+// MockService_LoadSpec_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadSpec'
+type MockService_LoadSpec_Call struct {
 	*mock.Call
 }
 
-// CheckHealth is a helper method to define mock.On call
+// LoadSpec is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *MockService_Expecter) CheckHealth(ctx interface{}) *MockService_CheckHealth_Call {
-	return &MockService_CheckHealth_Call{Call: _e.mock.On("CheckHealth", ctx)}
+//   - specPath string
+func (_e *MockService_Expecter) LoadSpec(ctx interface{}, specPath interface{}) *MockService_LoadSpec_Call {
+	return &MockService_LoadSpec_Call{Call: _e.mock.On("LoadSpec", ctx, specPath)}
 }
 
-func (_c *MockService_CheckHealth_Call) Run(run func(ctx context.Context)) *MockService_CheckHealth_Call {
+func (_c *MockService_LoadSpec_Call) Run(run func(ctx context.Context, specPath string)) *MockService_LoadSpec_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
 
-func (_c *MockService_CheckHealth_Call) Return(_a0 error) *MockService_CheckHealth_Call {
+func (_c *MockService_LoadSpec_Call) Return(_a0 error) *MockService_LoadSpec_Call {
 	_c.Call.Return(_a0)
 	return _c
 }
 
-func (_c *MockService_CheckHealth_Call) RunAndReturn(run func(context.Context) error) *MockService_CheckHealth_Call {
+func (_c *MockService_LoadSpec_Call) RunAndReturn(run func(context.Context, string) error) *MockService_LoadSpec_Call {
 	_c.Call.Return(run)
 	return _c
 }

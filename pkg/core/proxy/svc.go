@@ -2,7 +2,6 @@
 package proxy
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -111,10 +110,7 @@ func (h *Handler) buildBackendURL(baseURL string, reqURL *url.URL) (string, erro
 
 // createProxyRequest creates a new HTTP request for the backend.
 func (h *Handler) createProxyRequest(r *http.Request, backendURL string) (*http.Request, error) {
-	ctx, cancel := context.WithTimeout(r.Context(), h.timeout)
-	defer cancel()
-
-	proxyReq, err := http.NewRequestWithContext(ctx, r.Method, backendURL, r.Body)
+	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, backendURL, r.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}

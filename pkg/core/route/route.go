@@ -11,5 +11,8 @@ type Route struct {
 
 // Handler contains the backend routing configuration for a route.
 type Handler struct {
-	BaseURL string
+	Type       string
+	BaseURL    string
+	Location   string
+	StatusCode int
 }

@@ -54,7 +54,7 @@ func TestRouter_AddRoute(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := New()
-			err := r.AddRoute(tt.route)
+			err := r.AddRoute(&tt.route)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -143,8 +143,8 @@ func TestRouter_Match(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := New()
-			for _, route := range tt.routes {
-				require.NoError(t, r.AddRoute(route))
+			for i := range tt.routes {
+				require.NoError(t, r.AddRoute(&tt.routes[i]))
 			}
 
 			matchedRoute, params, err := r.Match(tt.method, tt.path)
@@ -173,8 +173,8 @@ func TestRouter_GetRoutes(t *testing.T) {
 		{Path: "/posts", Method: "POST"},
 	}
 
-	for _, route := range routes {
-		require.NoError(t, r.AddRoute(route))
+	for i := range routes {
+		require.NoError(t, r.AddRoute(&routes[i]))
 	}
 
 	gotRoutes := r.GetRoutes()

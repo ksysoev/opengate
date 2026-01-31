@@ -83,41 +83,72 @@ func (p *Parser) Parse(data []byte) ([]route.Route, error) {
 	routes := make([]route.Route, 0)
 
 	for path, pathItem := range spec.Paths {
-		routes = append(routes, p.extractRoutes(path, pathItem)...)
+		extracted, err := p.extractRoutes(path, pathItem)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract routes for path %s: %w", path, err)
+		}
+
+		routes = append(routes, extracted...)
 	}
 
 	return routes, nil
 }
 
 // extractRoutes extracts all routes from a PathItem.
-func (p *Parser) extractRoutes(path string, pathItem PathItem) []route.Route {
+func (p *Parser) extractRoutes(path string, pathItem PathItem) ([]route.Route, error) {
 	routes := make([]route.Route, 0)
 
 	if pathItem.Get != nil {
-		routes = append(routes, p.createRoute(path, "GET", pathItem.Get))
+		r, err := p.createRoute(path, "GET", pathItem.Get)
+		if err != nil {
+			return nil, err
+		}
+
+		routes = append(routes, r)
 	}
 
 	if pathItem.Post != nil {
-		routes = append(routes, p.createRoute(path, "POST", pathItem.Post))
+		r, err := p.createRoute(path, "POST", pathItem.Post)
+		if err != nil {
+			return nil, err
+		}
+
+		routes = append(routes, r)
 	}
 
 	if pathItem.Put != nil {
-		routes = append(routes, p.createRoute(path, "PUT", pathItem.Put))
+		r, err := p.createRoute(path, "PUT", pathItem.Put)
+		if err != nil {
+			return nil, err
+		}
+
+		routes = append(routes, r)
 	}
 
 	if pathItem.Delete != nil {
-		routes = append(routes, p.createRoute(path, "DELETE", pathItem.Delete))
+		r, err := p.createRoute(path, "DELETE", pathItem.Delete)
+		if err != nil {
+			return nil, err
+		}
+
+		routes = append(routes, r)
 	}
 
 	if pathItem.Patch != nil {
-		routes = append(routes, p.createRoute(path, "PATCH", pathItem.Patch))
+		r, err := p.createRoute(path, "PATCH", pathItem.Patch)
+		if err != nil {
+			return nil, err
+		}
+
+		routes = append(routes, r)
 	}
 
-	return routes
+	return routes, nil
 }
 
 // createRoute creates a Route from an Operation.
-func (p *Parser) createRoute(path, method string, op *Operation) route.Route {
+// Returns an error if the handler type is unknown or invalid.
+func (p *Parser) createRoute(path, method string, op *Operation) (route.Route, error) {
 	r := route.Route{
 		Path:        path,
 		Method:      method,
@@ -135,10 +166,14 @@ func (p *Parser) createRoute(path, method string, op *Operation) route.Route {
 		case "redirect":
 			handler.Location = op.XOpenGate.Options.Location
 			handler.StatusCode = op.XOpenGate.Options.StatusCode
+		default:
+			return route.Route{}, fmt.Errorf(
+				"unknown handler type %q for operation %q (%s %s)",
+				op.XOpenGate.Type, op.OperationID, method, path)
 		}
 
 		r.Handler = handler
 	}
 
-	return r
+	return r, nil
 }

@@ -50,11 +50,28 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 			return fmt.Errorf("failed to add route: %w", err)
 		}
 
-		slog.Debug("Registered route",
-			"method", routes[i].Method,
-			"path", routes[i].Path,
-			"backend", routes[i].Handler.BaseURL,
-			"operation_id", routes[i].OperationID)
+		// Type-aware logging
+		switch routes[i].Handler.Type {
+		case "forward":
+			slog.Debug("Registered forward route",
+				"method", routes[i].Method,
+				"path", routes[i].Path,
+				"backend", routes[i].Handler.BaseURL,
+				"operation_id", routes[i].OperationID)
+		case "redirect":
+			slog.Debug("Registered redirect route",
+				"method", routes[i].Method,
+				"path", routes[i].Path,
+				"location", routes[i].Handler.Location,
+				"status_code", routes[i].Handler.StatusCode,
+				"operation_id", routes[i].OperationID)
+		default:
+			slog.Debug("Registered route",
+				"method", routes[i].Method,
+				"path", routes[i].Path,
+				"type", routes[i].Handler.Type,
+				"operation_id", routes[i].OperationID)
+		}
 	}
 
 	// Create handlers

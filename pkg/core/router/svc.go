@@ -29,7 +29,7 @@ func New() *Router {
 }
 
 // AddRoute adds a route to the router.
-func (r *Router) AddRoute(rt route.Route) error {
+func (r *Router) AddRoute(rt *route.Route) error {
 	pattern, params, err := pathToRegex(rt.Path)
 	if err != nil {
 		return fmt.Errorf("failed to convert path to regex: %w", err)
@@ -38,7 +38,7 @@ func (r *Router) AddRoute(rt route.Route) error {
 	entry := routeEntry{
 		pattern: pattern,
 		method:  rt.Method,
-		route:   rt,
+		route:   *rt,
 		params:  params,
 	}
 
@@ -50,7 +50,8 @@ func (r *Router) AddRoute(rt route.Route) error {
 // Match finds a matching route for the given request.
 // Returns the route and path parameters if found, or an error if no match is found.
 func (r *Router) Match(method, path string) (*route.Route, map[string]string, error) {
-	for _, entry := range r.routes {
+	for i := range r.routes {
+		entry := &r.routes[i]
 		if entry.method != method {
 			continue
 		}
@@ -105,8 +106,8 @@ func pathToRegex(path string) (*regexp.Regexp, []string, error) {
 // GetRoutes returns all registered routes.
 func (r *Router) GetRoutes() []route.Route {
 	routes := make([]route.Route, len(r.routes))
-	for i, entry := range r.routes {
-		routes[i] = entry.route
+	for i := range r.routes {
+		routes[i] = r.routes[i].route
 	}
 
 	return routes

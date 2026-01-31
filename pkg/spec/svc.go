@@ -47,7 +47,12 @@ type OpenGateExt struct {
 
 // HandlerOptions represents the handler options.
 type HandlerOptions struct {
-	URL string `json:"url"`
+	// URL is used for forward handler type
+	URL string `json:"url,omitempty"`
+	// Location is used for redirect handler type
+	Location string `json:"location,omitempty"`
+	// StatusCode is used for redirect handler type (e.g., 301, 302, 307, 308)
+	StatusCode int `json:"status_code,omitempty"`
 }
 
 // Parser handles parsing of OpenAPI specifications.
@@ -119,10 +124,20 @@ func (p *Parser) createRoute(path, method string, op *Operation) route.Route {
 		OperationID: op.OperationID,
 	}
 
-	if op.XOpenGate != nil && op.XOpenGate.Options.URL != "" {
-		r.Handler = route.Handler{
-			BaseURL: op.XOpenGate.Options.URL,
+	if op.XOpenGate != nil {
+		handler := route.Handler{
+			Type: op.XOpenGate.Type,
 		}
+
+		switch op.XOpenGate.Type {
+		case "forward":
+			handler.BaseURL = op.XOpenGate.Options.URL
+		case "redirect":
+			handler.Location = op.XOpenGate.Options.Location
+			handler.StatusCode = op.XOpenGate.Options.StatusCode
+		}
+
+		r.Handler = handler
 	}
 
 	return r

@@ -127,6 +127,63 @@
           }
         }
       }
+    },
+    "/redirect/permanent": {
+      "get": {
+        "summary": "Permanent redirect example",
+        "description": "Permanently redirects to another location using 301 status code",
+        "operationId": "redirect-permanent",
+        "x-opengate": {
+          "type": "redirect",
+          "options": {
+            "location": "https://example.com/new-location",
+            "status_code": 301
+          }
+        },
+        "responses": {
+          "301": {
+            "description": "Moved Permanently"
+          }
+        }
+      }
+    },
+    "/redirect/temporary": {
+      "get": {
+        "summary": "Temporary redirect example",
+        "description": "Temporarily redirects to another location using 302 status code",
+        "operationId": "redirect-temporary",
+        "x-opengate": {
+          "type": "redirect",
+          "options": {
+            "location": "https://example.com/temp-location",
+            "status_code": 302
+          }
+        },
+        "responses": {
+          "302": {
+            "description": "Found (Temporary Redirect)"
+          }
+        }
+      }
+    },
+    "/old-api": {
+      "get": {
+        "summary": "Old API endpoint",
+        "description": "Redirects old API path to new location using 308 status code",
+        "operationId": "redirect-old-api",
+        "x-opengate": {
+          "type": "redirect",
+          "options": {
+            "location": "/api/users",
+            "status_code": 308
+          }
+        },
+        "responses": {
+          "308": {
+            "description": "Permanent Redirect"
+          }
+        }
+      }
     }
   }
 }

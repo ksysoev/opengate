@@ -10,6 +10,7 @@ import (
 	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
 	"github.com/ksysoev/opengate/pkg/core/proxy"
+	"github.com/ksysoev/opengate/pkg/core/redirect"
 	"github.com/ksysoev/opengate/pkg/core/router"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
@@ -44,20 +45,21 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 
 	// Create router and register routes
 	rtr := router.New()
-	for _, route := range routes {
-		if err := rtr.AddRoute(route); err != nil {
+	for i := range routes {
+		if err := rtr.AddRoute(&routes[i]); err != nil {
 			return fmt.Errorf("failed to add route: %w", err)
 		}
 
 		slog.Debug("Registered route",
-			"method", route.Method,
-			"path", route.Path,
-			"backend", route.Handler.BaseURL,
-			"operation_id", route.OperationID)
+			"method", routes[i].Method,
+			"path", routes[i].Path,
+			"backend", routes[i].Handler.BaseURL,
+			"operation_id", routes[i].OperationID)
 	}
 
-	// Create proxy handler
+	// Create handlers
 	proxyHandler := proxy.New()
+	redirectHandler := redirect.New()
 
 	// Build middleware chain
 	withReqID := middleware.NewReqID()
@@ -82,8 +84,19 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 
 		ctx = router.WithRoute(ctx, route)
 
-		// Forward to proxy handler
-		proxyHandler.ServeHTTP(w, r.WithContext(ctx))
+		// Route to appropriate handler based on type
+		switch route.Handler.Type {
+		case "forward":
+			proxyHandler.ServeHTTP(w, r.WithContext(ctx))
+		case "redirect":
+			redirectHandler.ServeHTTP(w, r.WithContext(ctx))
+		default:
+			slog.ErrorContext(ctx, "Unknown handler type",
+				"type", route.Handler.Type,
+				"path", route.Path,
+				"method", route.Method)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
 	}))
 
 	apiSvc, err := api.New(cfg.API, svc)

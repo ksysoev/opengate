@@ -40,13 +40,11 @@ func TestNew_ValidConfig(t *testing.T) {
 		},
 	}
 
-	// Create runtime with mock HTTP client
-	mockHTTP := core.NewMockHTTPClient(t)
-	runtime, err := core.NewRuntime(mockHTTP)
-	require.NoError(t, err)
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
 
 	svc := core.New(parser)
-	forwarder, err := proxy.New(runtime)
+	forwarder, err := proxy.New(mockRuntime)
 	require.NoError(t, err)
 	svc.RegisterHandler("forward", forwarder)
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
@@ -73,13 +71,11 @@ func TestNew_InvalidConfig(t *testing.T) {
 		},
 	}
 
-	// Create runtime with mock HTTP client
-	mockHTTP := core.NewMockHTTPClient(t)
-	runtime, err := core.NewRuntime(mockHTTP)
-	require.NoError(t, err)
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
 
 	svc := core.New(parser)
-	forwarder, err := proxy.New(runtime)
+	forwarder, err := proxy.New(mockRuntime)
 	require.NoError(t, err)
 	svc.RegisterHandler("forward", forwarder)
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
@@ -105,13 +101,11 @@ func TestAPI_Run_StartAndShutdown(t *testing.T) {
 		},
 	}
 
-	// Create runtime with mock HTTP client
-	mockHTTP := core.NewMockHTTPClient(t)
-	runtime, err := core.NewRuntime(mockHTTP)
-	require.NoError(t, err)
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
 
 	svc := core.New(parser)
-	forwarder, err := proxy.New(runtime)
+	forwarder, err := proxy.New(mockRuntime)
 	require.NoError(t, err)
 	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())

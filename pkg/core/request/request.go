@@ -9,13 +9,17 @@ import (
 
 // Request represents an internal request abstraction.
 // This is protocol-agnostic and contains all necessary request data.
+//
+// Path is used for incoming request routing (matching against route patterns).
+// URL is used for outbound requests (complete target URL constructed by handlers).
 type Request struct {
 	Body        io.ReadCloser
 	PathParams  map[string]string
 	QueryParams url.Values
 	Headers     http.Header
 	Method      string
-	Path        string
+	Path        string   // Incoming request path for routing
+	URL         *url.URL // Complete target URL for outbound requests (set by handlers)
 	RemoteAddr  string
 	Host        string
 	TLS         bool

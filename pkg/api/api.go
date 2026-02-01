@@ -115,6 +115,10 @@ func errorToHTTPStatus(err error) int {
 	switch {
 	case errors.Is(err, core.ErrRouteNotFound):
 		return http.StatusNotFound
+	case errors.Is(err, core.ErrUnauthorized):
+		return http.StatusUnauthorized
+	case errors.Is(err, core.ErrForbidden):
+		return http.StatusForbidden
 	case errors.Is(err, core.ErrInvalidRoute):
 		return http.StatusInternalServerError
 	case errors.Is(err, core.ErrInvalidRedirect):

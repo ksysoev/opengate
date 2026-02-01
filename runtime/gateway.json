@@ -128,6 +128,24 @@
         }
       }
     },
+    "/api/public/health": {
+      "get": {
+        "summary": "Public health check",
+        "description": "Public health check endpoint without authentication",
+        "operationId": "health-check",
+        "x-opengate": {
+          "type": "forward",
+          "options": {
+            "url": "http://localhost:3000"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
     "/redirect/permanent": {
       "get": {
         "summary": "Permanent redirect example",

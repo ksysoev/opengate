@@ -6,14 +6,16 @@ import (
 	"strings"
 
 	"github.com/ksysoev/opengate/pkg/api"
+	"github.com/ksysoev/opengate/pkg/core/policy"
 	httpprov "github.com/ksysoev/opengate/pkg/prov/http"
 	"github.com/spf13/viper"
 )
 
 type appConfig struct {
-	API     api.Config      `mapstructure:"api"`
-	Gateway GatewayConfig   `mapstructure:"gateway"`
-	HTTP    httpprov.Config `mapstructure:"http"`
+	Policies policy.PolicyConfig `mapstructure:"policies"`
+	API      api.Config          `mapstructure:"api"`
+	Gateway  GatewayConfig       `mapstructure:"gateway"`
+	HTTP     httpprov.Config     `mapstructure:"http"`
 }
 
 type GatewayConfig struct {

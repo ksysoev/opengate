@@ -10,6 +10,10 @@ var (
 	ErrBackendTimeout  = fmt.Errorf("backend request timeout")
 	ErrInvalidRedirect = fmt.Errorf("invalid redirect configuration")
 	ErrInvalidRuntime  = fmt.Errorf("invalid runtime configuration")
+	ErrUnauthorized    = fmt.Errorf("unauthorized")
+	ErrForbidden       = fmt.Errorf("forbidden")
+	ErrPolicyNotFound  = fmt.Errorf("policy not found")
+	ErrInvalidPolicy   = fmt.Errorf("invalid policy configuration")
 )
 
 // BackendError wraps backend-specific errors with context.

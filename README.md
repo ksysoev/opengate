@@ -1,6 +1,7 @@
 # OpenGate
 
 [![Tests](https://github.com/ksysoev/opengate/actions/workflows/tests.yml/badge.svg)](https://github.com/ksysoev/opengate/actions/workflows/tests.yml)
+[![codecov](https://codecov.io/gh/ksysoev/opengate/graph/badge.svg?token=HQQKED9VTL)](https://codecov.io/gh/ksysoev/opengate)
 [![Go Report Card](https://goreportcard.com/badge/github.com/ksysoev/opengate)](https://goreportcard.com/report/github.com/ksysoev/opengate)
 [![Go Reference](https://pkg.go.dev/badge/github.com/ksysoev/opengate.svg)](https://pkg.go.dev/github.com/ksysoev/opengate)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)

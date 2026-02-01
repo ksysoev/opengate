@@ -7,8 +7,10 @@ import (
 
 	"github.com/ksysoev/opengate/pkg/api"
 	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/middleware"
 	"github.com/ksysoev/opengate/pkg/core/proxy"
 	"github.com/ksysoev/opengate/pkg/core/redirect"
+	"github.com/ksysoev/opengate/pkg/middleware/oidc"
 	httpprov "github.com/ksysoev/opengate/pkg/prov/http"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
@@ -54,12 +56,41 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
 
+	// Create middleware registry
+	registry := middleware.NewRegistry()
+
+	// Register middleware factories
+	if err := registry.Register(oidc.NewFactory()); err != nil {
+		return fmt.Errorf("failed to register OIDC middleware factory: %w", err)
+	}
+
+	// Convert policy config to policies map
+	policies := cfg.Policies.ToPolicies()
+
+	// Create middleware chain
+	chain, err := middleware.NewChain(registry, policies)
+	if err != nil {
+		return fmt.Errorf("failed to create middleware chain: %w", err)
+	}
+
+	svc.SetMiddlewareChain(chain)
+
 	// Load OpenAPI specification
 	if err := svc.LoadSpec(ctx, cfg.Gateway.SpecPath); err != nil {
 		return fmt.Errorf("failed to load OpenAPI spec: %w", err)
 	}
 
 	routes := svc.GetRoutes(ctx)
+
+	// Validate and preload all policies referenced by routes
+	for i := range routes {
+		if len(routes[i].Policies) > 0 {
+			if err := chain.PreloadPolicies(routes[i].Policies); err != nil {
+				return fmt.Errorf("policy preload failed for route %s %s: %w", routes[i].Method, routes[i].Path, err)
+			}
+		}
+	}
+
 	slog.Info("Loaded routes from OpenAPI spec", "count", len(routes))
 
 	// Create API service - it delegates to core service

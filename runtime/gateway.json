@@ -14,11 +14,15 @@
           "type": "forward",
           "options": {
             "url": "http://localhost:3000"
-          }
+          },
+          "policies": ["auth-google"]
         },
         "responses": {
           "200": {
             "description": "A list of users"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token"
           }
         }
       },
@@ -30,11 +34,15 @@
           "type": "forward",
           "options": {
             "url": "http://localhost:3000"
-          }
+          },
+          "policies": ["auth-google"]
         },
         "responses": {
           "201": {
             "description": "User created successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token"
           }
         }
       }
@@ -58,11 +66,15 @@
           "type": "forward",
           "options": {
             "url": "http://localhost:3000"
-          }
+          },
+          "policies": ["auth-google"]
         },
         "responses": {
           "200": {
             "description": "User details"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token"
           },
           "404": {
             "description": "User not found"
@@ -87,11 +99,15 @@
           "type": "forward",
           "options": {
             "url": "http://localhost:3000"
-          }
+          },
+          "policies": ["auth-google"]
         },
         "responses": {
           "200": {
             "description": "User updated successfully"
+          },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token"
           },
           "404": {
             "description": "User not found"
@@ -116,14 +132,36 @@
           "type": "forward",
           "options": {
             "url": "http://localhost:3000"
-          }
+          },
+          "policies": ["auth-google"]
         },
         "responses": {
           "204": {
             "description": "User deleted successfully"
           },
+          "401": {
+            "description": "Unauthorized - Invalid or missing JWT token"
+          },
           "404": {
             "description": "User not found"
+          }
+        }
+      }
+    },
+    "/api/public/health": {
+      "get": {
+        "summary": "Public health check",
+        "description": "Public health check endpoint without authentication",
+        "operationId": "health-check",
+        "x-opengate": {
+          "type": "forward",
+          "options": {
+            "url": "http://localhost:3000"
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
           }
         }
       }

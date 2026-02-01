@@ -7,6 +7,7 @@ type Route struct {
 	Method      string
 	OperationID string
 	Handler     Handler
+	Policies    []string
 }
 
 // Handler contains the backend routing configuration for a route.

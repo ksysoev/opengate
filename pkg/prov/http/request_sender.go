@@ -26,7 +26,7 @@ var hopByHopHeaders = map[string]struct{}{
 }
 
 // SendRequest converts a core request to HTTP, executes it, and converts the response back.
-// All HTTP-specific logic (header handling, X-Forwarded-* headers, etc.) is encapsulated here.
+// All HTTP-specific logic (header handling, filtering hop-by-hop headers, etc.) is encapsulated here.
 //
 // The request must have its URL field populated with the complete target URL.
 // Returns a core response or an error wrapped with appropriate error types.
@@ -48,9 +48,6 @@ func (c *Client) SendRequest(ctx context.Context, req *request.Request) (*reques
 
 	// Copy headers (filtering hop-by-hop headers)
 	c.copyHeaders(httpReq.Header, req.Headers)
-
-	// Set X-Forwarded-* headers for proxy behavior
-	c.setForwardedHeaders(httpReq, req)
 
 	// Execute the HTTP request
 	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
@@ -99,45 +96,6 @@ func (c *Client) copyHeaders(dst, src http.Header) {
 func (c *Client) isHopByHopHeader(header string) bool {
 	_, ok := hopByHopHeaders[strings.ToLower(header)]
 	return ok
-}
-
-// setForwardedHeaders sets X-Forwarded-* headers to preserve client information.
-// This is standard proxy behavior to inform backend services of the original request.
-func (c *Client) setForwardedHeaders(httpReq *http.Request, req *request.Request) {
-	// Extract client IP from RemoteAddr to prevent IP spoofing
-	clientIP := c.extractClientIP(req.RemoteAddr)
-
-	// Append to existing X-Forwarded-For if present
-	if xff := req.Headers.Get("X-Forwarded-For"); xff != "" {
-		httpReq.Header.Set("X-Forwarded-For", xff+", "+clientIP)
-	} else {
-		httpReq.Header.Set("X-Forwarded-For", clientIP)
-	}
-
-	// Set protocol (http vs https)
-	if req.TLS {
-		httpReq.Header.Set("X-Forwarded-Proto", "https")
-	} else {
-		httpReq.Header.Set("X-Forwarded-Proto", "http")
-	}
-
-	// Set original host
-	if req.Host != "" {
-		httpReq.Header.Set("X-Forwarded-Host", req.Host)
-	}
-}
-
-// extractClientIP extracts the IP address from RemoteAddr.
-// Properly handles both IPv4 (192.168.1.1:8080) and IPv6 ([2001:db8::1]:8080) formats.
-func (c *Client) extractClientIP(remoteAddr string) string {
-	host, _, err := net.SplitHostPort(remoteAddr)
-	if err != nil {
-		// If SplitHostPort fails, return the original address
-		// This handles cases where there's no port
-		return remoteAddr
-	}
-
-	return host
 }
 
 // isTimeoutError checks if an error is timeout-related.

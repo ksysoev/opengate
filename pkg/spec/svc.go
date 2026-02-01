@@ -41,8 +41,9 @@ type Operation struct {
 
 // OpenGateExt represents the OpenGate-specific routing configuration extension.
 type OpenGateExt struct {
-	Type    string         `json:"type"`
-	Options HandlerOptions `json:"options"`
+	Type     string         `json:"type"`
+	Options  HandlerOptions `json:"options"`
+	Policies []string       `json:"policies,omitempty"`
 }
 
 // HandlerOptions represents the handler options.
@@ -173,6 +174,7 @@ func (p *Parser) createRoute(path, method string, op *Operation) (route.Route, e
 		}
 
 		r.Handler = handler
+		r.Policies = op.XOpenGate.Policies
 	}
 
 	return r, nil

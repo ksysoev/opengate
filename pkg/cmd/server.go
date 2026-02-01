@@ -59,13 +59,10 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	// Convert policy config to policies map
 	policies := cfg.Policies.ToPolicies()
 
-	// Create middleware chain with runtime
-	chain, err := middleware.NewChain(runtime, policies)
-	if err != nil {
-		return fmt.Errorf("failed to create middleware chain: %w", err)
+	// Initialize middleware registry with runtime and policies
+	if err := middleware.Initialize(runtime, policies); err != nil {
+		return fmt.Errorf("failed to initialize middleware: %w", err)
 	}
-
-	svc.SetMiddlewareChain(chain)
 
 	// Load OpenAPI specification
 	if err := svc.LoadSpec(ctx, cfg.Gateway.SpecPath); err != nil {
@@ -77,7 +74,7 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	// Validate and preload all policies referenced by routes
 	for i := range routes {
 		if len(routes[i].Policies) > 0 {
-			if err := chain.PreloadPolicies(routes[i].Policies); err != nil {
+			if err := middleware.PreloadPolicies(routes[i].Policies); err != nil {
 				return fmt.Errorf("policy preload failed for route %s %s: %w", routes[i].Method, routes[i].Path, err)
 			}
 		}

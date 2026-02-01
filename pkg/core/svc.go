@@ -4,8 +4,11 @@ package core
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
+	"github.com/ksysoev/opengate/pkg/core/request"
 	"github.com/ksysoev/opengate/pkg/core/route"
+	"github.com/ksysoev/opengate/pkg/core/router"
 )
 
 // specParser defines the interface for parsing OpenAPI specifications.
@@ -15,28 +18,92 @@ type specParser interface {
 
 // Service encapsulates core business logic and dependencies.
 type Service struct {
-	parser specParser
-	routes []route.Route
+	parser   specParser
+	router   *router.Router
+	handlers map[string]Handler
+	routes   []route.Route
 }
 
 // New creates a new Service instance with the provided dependencies.
 func New(parser specParser) *Service {
 	return &Service{
-		parser: parser,
-		routes: make([]route.Route, 0),
+		parser:   parser,
+		router:   router.New(),
+		handlers: make(map[string]Handler),
+		routes:   make([]route.Route, 0),
 	}
 }
 
-// LoadSpec loads routes from an OpenAPI specification file.
+// RegisterHandler registers a handler for a specific handler type.
+func (s *Service) RegisterHandler(handlerType string, handler Handler) {
+	s.handlers[handlerType] = handler
+}
+
+// LoadSpec loads routes from an OpenAPI specification file and registers them with the router.
 func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 	routes, err := s.parser.ParseFile(specPath)
 	if err != nil {
 		return fmt.Errorf("failed to parse spec file: %w", err)
 	}
 
+	if len(routes) == 0 {
+		return fmt.Errorf("no routes found in spec file")
+	}
+
 	s.routes = routes
 
+	// Register routes with router
+	for i := range s.routes {
+		if err := s.router.AddRoute(&s.routes[i]); err != nil {
+			return fmt.Errorf("failed to add route: %w", err)
+		}
+
+		// Type-aware logging
+		switch s.routes[i].Handler.Type {
+		case "forward":
+			slog.Debug("Registered forward route",
+				"method", s.routes[i].Method,
+				"path", s.routes[i].Path,
+				"backend", s.routes[i].Handler.BaseURL,
+				"operation_id", s.routes[i].OperationID)
+		case "redirect":
+			slog.Debug("Registered redirect route",
+				"method", s.routes[i].Method,
+				"path", s.routes[i].Path,
+				"location", s.routes[i].Handler.Location,
+				"status_code", s.routes[i].Handler.StatusCode,
+				"operation_id", s.routes[i].OperationID)
+		default:
+			slog.Debug("Registered route",
+				"method", s.routes[i].Method,
+				"path", s.routes[i].Path,
+				"type", s.routes[i].Handler.Type,
+				"operation_id", s.routes[i].OperationID)
+		}
+	}
+
 	return nil
+}
+
+// HandleRequest processes a request by routing it to the appropriate handler.
+func (s *Service) HandleRequest(ctx context.Context, req *request.Request) (*request.Response, error) {
+	// Match the route
+	rt, params, err := s.router.Match(req.Method, req.Path)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %s %s", ErrRouteNotFound, req.Method, req.Path)
+	}
+
+	// Update path params in request
+	req.PathParams = params
+
+	// Get handler for route type
+	handler, ok := s.handlers[rt.Handler.Type]
+	if !ok {
+		return nil, fmt.Errorf("%w: no handler registered for type %s", ErrInvalidRoute, rt.Handler.Type)
+	}
+
+	// Call the handler
+	return handler.Handle(ctx, req, rt)
 }
 
 // GetRoutes returns all loaded routes.

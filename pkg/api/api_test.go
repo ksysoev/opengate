@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/proxy"
+	"github.com/ksysoev/opengate/pkg/core/redirect"
 	"github.com/ksysoev/opengate/pkg/core/route"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +40,7 @@ func TestNew_ValidConfig(t *testing.T) {
 		},
 	}
 	svc := core.New(parser)
+	svc.RegisterHandler("forward", proxy.New())
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 
 	api, err := New(cfg, svc)
@@ -62,27 +65,12 @@ func TestNew_InvalidConfig(t *testing.T) {
 		},
 	}
 	svc := core.New(parser)
+	svc.RegisterHandler("forward", proxy.New())
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 
 	_, err := New(cfg, svc)
 
 	assert.Error(t, err)
-}
-
-func TestNew_NoRoutes(t *testing.T) {
-	cfg := Config{Listen: ":8080"}
-
-	// Create a core service with no routes
-	parser := &mockParser{
-		routes: []route.Route{},
-	}
-	svc := core.New(parser)
-	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
-
-	_, err := New(cfg, svc)
-
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no routes loaded")
 }
 
 func TestAPI_Run_StartAndShutdown(t *testing.T) {
@@ -101,6 +89,8 @@ func TestAPI_Run_StartAndShutdown(t *testing.T) {
 		},
 	}
 	svc := core.New(parser)
+	svc.RegisterHandler("forward", proxy.New())
+	svc.RegisterHandler("redirect", redirect.New())
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 
 	api, err := New(cfg, svc)

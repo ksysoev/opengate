@@ -236,7 +236,7 @@ gateway:
 
 	err = RunCommand(ctx, flags)
 
-	// Empty spec should fail with "no routes loaded" error
+	// Empty spec should fail with "no routes found" error
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "no routes loaded")
+	assert.Contains(t, err.Error(), "no routes found")
 }

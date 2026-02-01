@@ -7,6 +7,8 @@ import (
 
 	"github.com/ksysoev/opengate/pkg/api"
 	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/proxy"
+	"github.com/ksysoev/opengate/pkg/core/redirect"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
 
@@ -26,9 +28,13 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 		return fmt.Errorf("gateway spec path must be specified")
 	}
 
-	// Create dependencies
+	// Create core service
 	parser := spec.NewParser()
 	svc := core.New(parser)
+
+	// Register handlers with core service
+	svc.RegisterHandler("forward", proxy.New())
+	svc.RegisterHandler("redirect", redirect.New())
 
 	// Load OpenAPI specification
 	if err := svc.LoadSpec(ctx, cfg.Gateway.SpecPath); err != nil {
@@ -38,7 +44,7 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	routes := svc.GetRoutes(ctx)
 	slog.Info("Loaded routes from OpenAPI spec", "count", len(routes))
 
-	// Create API service - it handles routing internally
+	// Create API service - it delegates to core service
 	apiSvc, err := api.New(cfg.API, svc)
 	if err != nil {
 		return fmt.Errorf("failed to create API service: %w", err)

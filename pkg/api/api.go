@@ -4,16 +4,12 @@ package api
 import (
 	"context"
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
 
 	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
-	"github.com/ksysoev/opengate/pkg/core/proxy"
-	"github.com/ksysoev/opengate/pkg/core/redirect"
-	"github.com/ksysoev/opengate/pkg/core/router"
 )
 
 const (
@@ -21,10 +17,8 @@ const (
 )
 
 type API struct {
-	router          *router.Router
-	proxyHandler    core.Handler
-	redirectHandler core.Handler
-	config          Config
+	svc    *core.Service
+	config Config
 }
 
 type Config struct {
@@ -32,76 +26,25 @@ type Config struct {
 }
 
 // New creates a new API instance with the provided configuration and core service.
-// It validates the configuration, loads routes from the service, and sets up the router.
-// Returns an error if the listen address is not specified or if routes cannot be loaded.
+// It validates the configuration.
 func New(cfg Config, svc *core.Service) (*API, error) {
 	if cfg.Listen == "" {
-		return nil, fmt.Errorf("listen address must be specified")
-	}
-
-	// Get routes from core service
-	routes := svc.GetRoutes(context.Background())
-	if len(routes) == 0 {
-		return nil, fmt.Errorf("no routes loaded from spec")
-	}
-
-	// Create router and register routes
-	rtr := router.New()
-	for i := range routes {
-		if err := rtr.AddRoute(&routes[i]); err != nil {
-			return nil, fmt.Errorf("failed to add route: %w", err)
-		}
-
-		// Type-aware logging
-		switch routes[i].Handler.Type {
-		case "forward":
-			slog.Debug("Registered forward route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"backend", routes[i].Handler.BaseURL,
-				"operation_id", routes[i].OperationID)
-		case "redirect":
-			slog.Debug("Registered redirect route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"location", routes[i].Handler.Location,
-				"status_code", routes[i].Handler.StatusCode,
-				"operation_id", routes[i].OperationID)
-		default:
-			slog.Debug("Registered route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"type", routes[i].Handler.Type,
-				"operation_id", routes[i].OperationID)
-		}
+		return nil, errors.New("listen address must be specified")
 	}
 
 	api := &API{
-		config:          cfg,
-		router:          rtr,
-		proxyHandler:    proxy.New(),
-		redirectHandler: redirect.New(),
+		config: cfg,
+		svc:    svc,
 	}
 
 	return api, nil
 }
 
 // ServeHTTP implements http.Handler interface.
-// It routes incoming HTTP requests to the appropriate handler based on the registered routes.
+// It converts HTTP requests to core requests and delegates to the core service.
 func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Match the route
-	route, params, err := a.router.Match(r.Method, r.URL.Path)
-	if err != nil {
-		slog.DebugContext(r.Context(), "No matching route",
-			"method", r.Method,
-			"path", r.URL.Path)
-		http.Error(w, "Not Found", http.StatusNotFound)
-
-		return
-	}
-
 	// Convert HTTP request to core request
-	coreReq, err := httpToCore(r, params)
+	coreReq, err := httpToCore(r, nil)
 	if err != nil {
 		slog.ErrorContext(r.Context(), "Failed to convert request", "error", err)
 		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
@@ -109,29 +52,11 @@ func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Select and call the appropriate handler
-	var handler core.Handler
-
-	switch route.Handler.Type {
-	case "forward":
-		handler = a.proxyHandler
-	case "redirect":
-		handler = a.redirectHandler
-	default:
-		slog.ErrorContext(r.Context(), "Unknown handler type",
-			"type", route.Handler.Type,
-			"path", route.Path,
-			"method", route.Method)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
-	}
-
-	// Call core handler
-	coreResp, err := handler.Handle(r.Context(), coreReq, route)
+	// Delegate to core service
+	coreResp, err := a.svc.HandleRequest(r.Context(), coreReq)
 	if err != nil {
-		slog.ErrorContext(r.Context(), "Handler failed", "error", err,
-			"path", route.Path, "method", route.Method, "handler_type", route.Handler.Type)
+		slog.ErrorContext(r.Context(), "Request handling failed", "error", err,
+			"method", r.Method, "path", r.URL.Path)
 		status := errorToHTTPStatus(err)
 		http.Error(w, http.StatusText(status), status)
 

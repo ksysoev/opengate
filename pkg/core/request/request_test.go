@@ -12,8 +12,10 @@ import (
 
 func TestRequest_StructFields(t *testing.T) {
 	tests := []struct {
-		req  *Request
-		name string
+		name           string
+		req            *Request
+		expectedMethod string
+		expectedPath   string
 	}{
 		{
 			name: "All fields populated",
@@ -34,6 +36,8 @@ func TestRequest_StructFields(t *testing.T) {
 				TLS:        true,
 				Host:       "example.com",
 			},
+			expectedMethod: "GET",
+			expectedPath:   "/users/123",
 		},
 		{
 			name: "Minimal fields",
@@ -41,22 +45,25 @@ func TestRequest_StructFields(t *testing.T) {
 				Method: "POST",
 				Path:   "/api/v1/resource",
 			},
+			expectedMethod: "POST",
+			expectedPath:   "/api/v1/resource",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NotNil(t, tt.req)
-			assert.Equal(t, tt.req.Method, tt.req.Method)
-			assert.Equal(t, tt.req.Path, tt.req.Path)
+			assert.Equal(t, tt.expectedMethod, tt.req.Method)
+			assert.Equal(t, tt.expectedPath, tt.req.Path)
 		})
 	}
 }
 
 func TestResponse_StructFields(t *testing.T) {
 	tests := []struct {
-		resp *Response
-		name string
+		resp               *Response
+		name               string
+		expectedStatusCode int
 	}{
 		{
 			name: "Complete response",
@@ -67,6 +74,7 @@ func TestResponse_StructFields(t *testing.T) {
 				},
 				Body: io.NopCloser(strings.NewReader("response body")),
 			},
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name: "Minimal response",
@@ -75,13 +83,14 @@ func TestResponse_StructFields(t *testing.T) {
 				Headers:    http.Header{},
 				Body:       http.NoBody,
 			},
+			expectedStatusCode: http.StatusNoContent,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.NotNil(t, tt.resp)
-			assert.Equal(t, tt.resp.StatusCode, tt.resp.StatusCode)
+			assert.Equal(t, tt.expectedStatusCode, tt.resp.StatusCode)
 			assert.NotNil(t, tt.resp.Headers)
 		})
 	}

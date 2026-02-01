@@ -33,6 +33,16 @@ func coreToHTTP(w http.ResponseWriter, resp *request.Response) error {
 		return fmt.Errorf("core response is nil")
 	}
 
+	// Validate status code
+	statusCode := resp.StatusCode
+	if statusCode == 0 {
+		statusCode = http.StatusOK
+	}
+
+	if statusCode < 100 || statusCode > 999 {
+		return fmt.Errorf("invalid HTTP status code: %d", statusCode)
+	}
+
 	// Copy headers
 	for key, values := range resp.Headers {
 		for _, value := range values {
@@ -41,7 +51,7 @@ func coreToHTTP(w http.ResponseWriter, resp *request.Response) error {
 	}
 
 	// Write status code
-	w.WriteHeader(resp.StatusCode)
+	w.WriteHeader(statusCode)
 
 	// Copy body if present
 	if resp.Body != nil && resp.Body != http.NoBody {

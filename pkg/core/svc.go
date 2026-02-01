@@ -50,6 +50,8 @@ func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 		return fmt.Errorf("no routes found in spec file")
 	}
 
+	// Reset router and routes to prevent duplicates on reload
+	s.router = router.New()
 	s.routes = routes
 
 	// Register routes with router

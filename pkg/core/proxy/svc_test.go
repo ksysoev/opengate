@@ -252,10 +252,10 @@ func TestHandler_Handle_BackendTimeout(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, resp)
 
-	// Verify error is BackendError
+	// Verify error is BackendError with timeout
 	var backendErr *core.BackendError
 	assert.True(t, errors.As(err, &backendErr))
-	assert.True(t, errors.Is(err, core.ErrBackendFailed))
+	assert.True(t, errors.Is(err, core.ErrBackendTimeout))
 }
 
 func TestHandler_Handle_XForwardedHeaders(t *testing.T) {

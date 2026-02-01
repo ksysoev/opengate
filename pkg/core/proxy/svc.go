@@ -1,9 +1,10 @@
-// Package proxy provides HTTP proxying functionality for the API gateway.
 package proxy
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -69,6 +70,14 @@ func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Ro
 	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
 	resp, err := h.client.Do(backendReq)
 	if err != nil {
+		// Check if error is timeout-related
+		if h.isTimeoutError(err) {
+			return nil, &core.BackendError{
+				Err:        fmt.Errorf("%w: %v", core.ErrBackendTimeout, err),
+				BackendURL: backendURL,
+			}
+		}
+
 		return nil, &core.BackendError{
 			Err:        fmt.Errorf("%w: %v", core.ErrBackendFailed, err),
 			BackendURL: backendURL,
@@ -182,4 +191,20 @@ func (h *Handler) extractClientIP(remoteAddr string) string {
 	}
 
 	return remoteAddr
+}
+
+// isTimeoutError checks if an error is timeout-related.
+func (h *Handler) isTimeoutError(err error) bool {
+	// Check for context deadline exceeded
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+
+	// Check for net.Error with Timeout() == true
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
+	}
+
+	return false
 }

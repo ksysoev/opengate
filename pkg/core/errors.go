@@ -4,7 +4,7 @@ import "fmt"
 
 // Sentinel errors for common failure cases.
 var (
-	ErrRouteNotFound   = fmt.Errorf("route not found in context")
+	ErrRouteNotFound   = fmt.Errorf("route not found")
 	ErrInvalidRoute    = fmt.Errorf("invalid route configuration")
 	ErrBackendFailed   = fmt.Errorf("backend request failed")
 	ErrBackendTimeout  = fmt.Errorf("backend request timeout")
@@ -39,4 +39,8 @@ type RedirectError struct {
 
 func (e *RedirectError) Error() string {
 	return fmt.Sprintf("redirect error: %s", e.Reason)
+}
+
+func (e *RedirectError) Unwrap() error {
+	return ErrInvalidRedirect
 }

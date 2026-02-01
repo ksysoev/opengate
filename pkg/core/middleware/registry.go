@@ -39,7 +39,7 @@ func GetRegistry() *Registry {
 }
 
 // Register adds a middleware factory function to the global registry.
-// Returns an error if a factory with the same name is already registered.
+// If a factory with the same name is already registered, it will be replaced.
 // This is a convenience function that calls GetRegistry().Register().
 func Register(name string, factory FactoryFunc) error {
 	if name == "" {
@@ -54,7 +54,8 @@ func Register(name string, factory FactoryFunc) error {
 }
 
 // Register adds a middleware factory function to the registry.
-// Returns an error if a factory with the same name is already registered.
+// If a factory with the same name is already registered, it will be replaced.
+// This makes the registration idempotent and test-friendly.
 func (r *Registry) Register(name string, factory FactoryFunc) error {
 	if name == "" {
 		return fmt.Errorf("middleware name cannot be empty")
@@ -66,10 +67,6 @@ func (r *Registry) Register(name string, factory FactoryFunc) error {
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
-
-	if _, exists := r.factories[name]; exists {
-		return fmt.Errorf("middleware %q already registered", name)
-	}
 
 	r.factories[name] = factory
 

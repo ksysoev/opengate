@@ -56,11 +56,9 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
 
-	// Register middleware factories (only if not already registered)
-	if !middleware.GetRegistry().HasFactory("oidc") {
-		if err := middleware.Register("oidc", oidc.Create); err != nil {
-			return fmt.Errorf("failed to register oidc middleware: %w", err)
-		}
+	// Register middleware factories
+	if err := middleware.Register("oidc", oidc.Create); err != nil {
+		return fmt.Errorf("failed to register oidc middleware: %w", err)
 	}
 
 	// Convert policy config to policies map

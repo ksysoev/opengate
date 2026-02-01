@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/ksysoev/opengate/pkg/core"
@@ -19,8 +20,9 @@ type Middleware struct {
 	config    Config
 }
 
-// NewMiddleware creates a new OIDC middleware instance with the provided HTTP client.
-func NewMiddleware(config *Config, httpClient *http.Client) (*Middleware, error) {
+// NewMiddleware creates a new OIDC middleware instance.
+// It creates its own HTTP client for JWKS fetching.
+func NewMiddleware(config *Config) (*Middleware, error) {
 	if config.Issuer == "" {
 		return nil, fmt.Errorf("issuer must be specified")
 	}
@@ -31,6 +33,11 @@ func NewMiddleware(config *Config, httpClient *http.Client) (*Middleware, error)
 
 	if config.JWKSURI == "" {
 		return nil, fmt.Errorf("jwks_uri must be specified")
+	}
+
+	// Create dedicated HTTP client for JWKS fetching (not a proxy operation)
+	httpClient := &http.Client{
+		Timeout: 10 * time.Second,
 	}
 
 	return &Middleware{

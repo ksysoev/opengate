@@ -3,22 +3,17 @@ package oidc
 
 import (
 	"fmt"
-	"net/http"
 
 	"github.com/ksysoev/opengate/pkg/core/middleware"
 	"github.com/mitchellh/mapstructure"
 )
 
 // Factory creates OIDC middleware instances.
-type Factory struct {
-	httpClient *http.Client
-}
+type Factory struct{}
 
-// NewFactory creates a new OIDC middleware factory with the provided HTTP client.
-func NewFactory(httpClient *http.Client) *Factory {
-	return &Factory{
-		httpClient: httpClient,
-	}
+// NewFactory creates a new OIDC middleware factory.
+func NewFactory() *Factory {
+	return &Factory{}
 }
 
 // Type returns the middleware type identifier.
@@ -44,8 +39,8 @@ func (f *Factory) Create(rawConfig map[string]interface{}) (middleware.Middlewar
 		return nil, fmt.Errorf("failed to decode OIDC config: %w", err)
 	}
 
-	// Create middleware with shared HTTP client
-	mw, err := NewMiddleware(&config, f.httpClient)
+	// Create middleware - it will create its own HTTP client for JWKS
+	mw, err := NewMiddleware(&config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OIDC middleware: %w", err)
 	}

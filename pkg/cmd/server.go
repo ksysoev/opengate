@@ -59,8 +59,8 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	// Create middleware registry
 	registry := middleware.NewRegistry()
 
-	// Register middleware factories with shared HTTP client
-	if err := registry.Register(oidc.NewFactory(httpClient.HTTPClient())); err != nil {
+	// Register middleware factories
+	if err := registry.Register(oidc.NewFactory()); err != nil {
 		return fmt.Errorf("failed to register OIDC middleware factory: %w", err)
 	}
 

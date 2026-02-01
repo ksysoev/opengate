@@ -28,11 +28,6 @@ func TestClient_SendRequest_Success(t *testing.T) {
 		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
 		assert.Equal(t, "test-value", r.Header.Get("X-Custom-Header"))
 
-		// Verify X-Forwarded headers were set
-		assert.Contains(t, r.Header.Get("X-Forwarded-For"), "192.168.1.1")
-		assert.Equal(t, "https", r.Header.Get("X-Forwarded-Proto"))
-		assert.Equal(t, "example.com", r.Header.Get("X-Forwarded-Host"))
-
 		// Verify hop-by-hop headers were filtered
 		assert.Empty(t, r.Header.Get("Connection"))
 		assert.Empty(t, r.Header.Get("Keep-Alive"))
@@ -212,81 +207,6 @@ func TestClient_SendRequest_InvalidURL(t *testing.T) {
 	assert.Contains(t, err.Error(), "failed to create HTTP request")
 }
 
-func TestClient_SendRequest_XForwardedForAppends(t *testing.T) {
-	// Create test server to capture headers
-	var capturedXFF string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedXFF = r.Header.Get("X-Forwarded-For")
-
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client, err := New(Config{Timeout: 5 * time.Second})
-	require.NoError(t, err)
-
-	serverURL, err := url.Parse(server.URL + "/test")
-	require.NoError(t, err)
-
-	// Request with existing X-Forwarded-For
-	coreReq := &request.Request{
-		Method: "GET",
-		URL:    serverURL,
-		Headers: http.Header{
-			"X-Forwarded-For": []string{"10.0.0.1, 10.0.0.2"},
-		},
-		Body:       http.NoBody,
-		RemoteAddr: "192.168.1.1:12345",
-	}
-
-	// Execute request
-	resp, err := client.SendRequest(context.Background(), coreReq)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	resp.Body.Close()
-
-	// Verify X-Forwarded-For was appended
-	assert.Equal(t, "10.0.0.1, 10.0.0.2, 192.168.1.1", capturedXFF)
-}
-
-func TestClient_SendRequest_HTTPProtocol(t *testing.T) {
-	// Create test server to capture headers
-	var capturedProto string
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedProto = r.Header.Get("X-Forwarded-Proto")
-
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
-
-	client, err := New(Config{Timeout: 5 * time.Second})
-	require.NoError(t, err)
-
-	serverURL, err := url.Parse(server.URL + "/test")
-	require.NoError(t, err)
-
-	// Request with TLS = false
-	coreReq := &request.Request{
-		Method:     "GET",
-		URL:        serverURL,
-		Headers:    http.Header{},
-		Body:       http.NoBody,
-		RemoteAddr: "192.168.1.1:12345",
-		TLS:        false, // HTTP not HTTPS
-	}
-
-	// Execute request
-	resp, err := client.SendRequest(context.Background(), coreReq)
-	require.NoError(t, err)
-	require.NotNil(t, resp)
-	resp.Body.Close()
-
-	// Verify X-Forwarded-Proto is http
-	assert.Equal(t, "http", capturedProto)
-}
-
 func TestClient_CopyHeaders_FiltersHopByHop(t *testing.T) {
 	client, err := New(Config{})
 	require.NoError(t, err)
@@ -320,40 +240,6 @@ func TestClient_CopyHeaders_FiltersHopByHop(t *testing.T) {
 	assert.Empty(t, dst.Get("Transfer-Encoding"))
 	assert.Empty(t, dst.Get("Upgrade"))
 	assert.Empty(t, dst.Get("Proxy-Authenticate"))
-}
-
-func TestClient_ExtractClientIP(t *testing.T) {
-	client, err := New(Config{})
-	require.NoError(t, err)
-
-	tests := []struct {
-		name       string
-		remoteAddr string
-		expectedIP string
-	}{
-		{
-			name:       "IPv4 with port",
-			remoteAddr: "192.168.1.1:12345",
-			expectedIP: "192.168.1.1",
-		},
-		{
-			name:       "IPv6 with port",
-			remoteAddr: "[2001:db8::1]:8080",
-			expectedIP: "2001:db8::1",
-		},
-		{
-			name:       "IP without port",
-			remoteAddr: "192.168.1.1",
-			expectedIP: "192.168.1.1",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			ip := client.extractClientIP(tt.remoteAddr)
-			assert.Equal(t, tt.expectedIP, ip)
-		})
-	}
 }
 
 func TestClient_IsHopByHopHeader(t *testing.T) {

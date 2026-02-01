@@ -8,21 +8,9 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-// Factory creates OIDC middleware instances.
-type Factory struct{}
-
-// NewFactory creates a new OIDC middleware factory.
-func NewFactory() *Factory {
-	return &Factory{}
-}
-
-// Type returns the middleware type identifier.
-func (f *Factory) Type() string {
-	return "oidc"
-}
-
-// Create builds an OIDC middleware from configuration.
-func (f *Factory) Create(rawConfig map[string]interface{}) (middleware.Middleware, error) {
+// Create is the factory function for OIDC middleware.
+// It decodes the configuration and creates a new OIDC middleware instance.
+func Create(runtime middleware.Runtime, rawConfig map[string]any) (middleware.Middleware, error) {
 	var config Config
 
 	// Decode configuration using mapstructure
@@ -39,8 +27,8 @@ func (f *Factory) Create(rawConfig map[string]interface{}) (middleware.Middlewar
 		return nil, fmt.Errorf("failed to decode OIDC config: %w", err)
 	}
 
-	// Create middleware - it will create its own HTTP client for JWKS
-	mw, err := NewMiddleware(&config)
+	// Create middleware with runtime
+	mw, err := NewMiddleware(runtime, &config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create OIDC middleware: %w", err)
 	}

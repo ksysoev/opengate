@@ -19,32 +19,25 @@ type specParser interface {
 
 // Service encapsulates core business logic and dependencies.
 type Service struct {
-	parser          specParser
-	matcher         *router.Matcher
-	handlers        map[string]Handler
-	middlewareChain *middleware.Chain
-	routes          []route.Route
+	parser   specParser
+	matcher  *router.Matcher
+	handlers map[string]Handler
+	routes   []route.Route
 }
 
 // New creates a new Service instance with the provided dependencies.
 func New(parser specParser) *Service {
 	return &Service{
-		parser:          parser,
-		matcher:         router.New(),
-		handlers:        make(map[string]Handler),
-		routes:          make([]route.Route, 0),
-		middlewareChain: nil, // Will be set via SetMiddlewareChain
+		parser:   parser,
+		matcher:  router.New(),
+		handlers: make(map[string]Handler),
+		routes:   make([]route.Route, 0),
 	}
 }
 
 // RegisterHandler registers a handler for a specific handler type.
 func (s *Service) RegisterHandler(handlerType string, handler Handler) {
 	s.handlers[handlerType] = handler
-}
-
-// SetMiddlewareChain sets the middleware chain for the service.
-func (s *Service) SetMiddlewareChain(chain *middleware.Chain) {
-	s.middlewareChain = chain
 }
 
 // LoadSpec loads routes from an OpenAPI specification file and registers them with the router.
@@ -117,9 +110,9 @@ func (s *Service) HandleRequest(ctx context.Context, req *request.Request) (*req
 		return handler.Handle(ctx, req, rt)
 	}
 
-	// If middleware chain is set and route has policies, execute through chain
-	if s.middlewareChain != nil && len(rt.Policies) > 0 {
-		chainedHandler := s.middlewareChain.Build(rt.Policies, finalHandler)
+	// If route has policies, wrap handler with middleware chain
+	if len(rt.Policies) > 0 {
+		chainedHandler := middleware.BuildHandler(rt.Policies, finalHandler)
 		return chainedHandler(ctx, req)
 	}
 

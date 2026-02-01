@@ -10,11 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/ksysoev/opengate/pkg/core/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func TestRunCommand_MissingSpecPath(t *testing.T) {
+	t.Cleanup(middleware.ResetRegistryForTest)
+
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yml")
 
@@ -43,6 +46,8 @@ gateway:
 }
 
 func TestRunCommand_InvalidSpecPath(t *testing.T) {
+	t.Cleanup(middleware.ResetRegistryForTest)
+
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yml")
 
@@ -71,6 +76,8 @@ gateway:
 }
 
 func TestRunCommand_InvalidSpecJSON(t *testing.T) {
+	t.Cleanup(middleware.ResetRegistryForTest)
+
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yml")
 	specPath := filepath.Join(tmpDir, "spec.json")
@@ -104,6 +111,8 @@ gateway:
 }
 
 func TestRunCommand_SuccessfulStartup(t *testing.T) {
+	t.Cleanup(middleware.ResetRegistryForTest)
+
 	// Create a mock backend server
 	backendCalled := false
 
@@ -197,6 +206,8 @@ gateway:
 }
 
 func TestRunCommand_EmptySpec(t *testing.T) {
+	t.Cleanup(middleware.ResetRegistryForTest)
+
 	tmpDir := t.TempDir()
 	configPath := filepath.Join(tmpDir, "config.yml")
 	specPath := filepath.Join(tmpDir, "spec.json")

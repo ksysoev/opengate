@@ -8,8 +8,8 @@ import (
 	"github.com/ksysoev/opengate/pkg/core/request"
 )
 
-// HTTPToCore converts an HTTP request to a core request.
-func HTTPToCore(r *http.Request, pathParams map[string]string) (*request.Request, error) {
+// httpToCore converts an HTTP request to a core request.
+func httpToCore(r *http.Request, pathParams map[string]string) (*request.Request, error) {
 	if r == nil {
 		return nil, fmt.Errorf("http request is nil")
 	}
@@ -27,8 +27,8 @@ func HTTPToCore(r *http.Request, pathParams map[string]string) (*request.Request
 	}, nil
 }
 
-// CoreToHTTP writes a core response to an HTTP response writer.
-func CoreToHTTP(w http.ResponseWriter, resp *request.Response) error {
+// coreToHTTP writes a core response to an HTTP response writer.
+func coreToHTTP(w http.ResponseWriter, resp *request.Response) error {
 	if resp == nil {
 		return fmt.Errorf("core response is nil")
 	}

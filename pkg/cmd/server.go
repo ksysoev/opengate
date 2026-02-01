@@ -4,14 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 
 	"github.com/ksysoev/opengate/pkg/api"
-	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
-	"github.com/ksysoev/opengate/pkg/core/proxy"
-	"github.com/ksysoev/opengate/pkg/core/redirect"
-	"github.com/ksysoev/opengate/pkg/core/router"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
 
@@ -43,82 +38,13 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	routes := svc.GetRoutes(ctx)
 	slog.Info("Loaded routes from OpenAPI spec", "count", len(routes))
 
-	// Create router and register routes
-	rtr := router.New()
-	for i := range routes {
-		if err := rtr.AddRoute(&routes[i]); err != nil {
-			return fmt.Errorf("failed to add route: %w", err)
-		}
-
-		// Type-aware logging
-		switch routes[i].Handler.Type {
-		case "forward":
-			slog.Debug("Registered forward route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"backend", routes[i].Handler.BaseURL,
-				"operation_id", routes[i].OperationID)
-		case "redirect":
-			slog.Debug("Registered redirect route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"location", routes[i].Handler.Location,
-				"status_code", routes[i].Handler.StatusCode,
-				"operation_id", routes[i].OperationID)
-		default:
-			slog.Debug("Registered route",
-				"method", routes[i].Method,
-				"path", routes[i].Path,
-				"type", routes[i].Handler.Type,
-				"operation_id", routes[i].OperationID)
-		}
-	}
-
-	// Create handlers
-	proxyHandler := proxy.New()
-	redirectHandler := redirect.New()
-
-	// Wrap in API adapters
-	proxyAdapter := api.NewHandlerAdapter(proxyHandler)
-	redirectAdapter := api.NewHandlerAdapter(redirectHandler)
-
-	// Build middleware chain
-	withReqID := middleware.NewReqID()
-
-	handler := withReqID(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// First, match the route
-		route, params, err := rtr.Match(r.Method, r.URL.Path)
-		if err != nil {
-			slog.DebugContext(r.Context(), "No matching route",
-				"method", r.Method,
-				"path", r.URL.Path)
-			http.Error(w, "Not Found", http.StatusNotFound)
-
-			return
-		}
-
-		// Dispatch to appropriate adapter with explicit parameters
-		switch route.Handler.Type {
-		case "forward":
-			proxyAdapter.ServeHTTP(w, r, route, params)
-		case "redirect":
-			redirectAdapter.ServeHTTP(w, r, route, params)
-		default:
-			slog.ErrorContext(r.Context(), "Unknown handler type",
-				"type", route.Handler.Type,
-				"path", route.Path,
-				"method", route.Method)
-			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-		}
-	}))
-
+	// Create API service - it handles routing internally
 	apiSvc, err := api.New(cfg.API, svc)
 	if err != nil {
 		return fmt.Errorf("failed to create API service: %w", err)
 	}
 
-	apiSvc.SetMux(handler)
-
+	// Run the API server
 	err = apiSvc.Run(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to run API service: %w", err)

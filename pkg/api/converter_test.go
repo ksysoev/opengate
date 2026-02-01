@@ -118,7 +118,7 @@ func TestHTTPToCore(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			httpReq := tt.setupRequest()
 
-			coreReq, err := HTTPToCore(httpReq, tt.pathParams)
+			coreReq, err := httpToCore(httpReq, tt.pathParams)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -221,7 +221,7 @@ func TestCoreToHTTP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
 
-			err := CoreToHTTP(w, tt.resp)
+			err := coreToHTTP(w, tt.resp)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -239,7 +239,7 @@ func TestCoreToHTTP(t *testing.T) {
 func TestHTTPToCore_QueryParams(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/search?q=golang&category=tutorial&category=example", http.NoBody)
 
-	coreReq, err := HTTPToCore(req, map[string]string{})
+	coreReq, err := httpToCore(req, map[string]string{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "golang", coreReq.QueryParams.Get("q"))
@@ -254,7 +254,7 @@ func TestHTTPToCore_PathParams(t *testing.T) {
 		"postId": "456",
 	}
 
-	coreReq, err := HTTPToCore(req, pathParams)
+	coreReq, err := httpToCore(req, pathParams)
 
 	require.NoError(t, err)
 	assert.Equal(t, "123", coreReq.PathParams["userId"])
@@ -265,7 +265,7 @@ func TestHTTPToCore_EmptyPathParams(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/users", http.NoBody)
 
 	// Passing nil path params
-	coreReq, err := HTTPToCore(req, nil)
+	coreReq, err := httpToCore(req, nil)
 
 	require.NoError(t, err)
 	assert.Nil(t, coreReq.PathParams)
@@ -281,7 +281,7 @@ func TestCoreToHTTP_MultipleHeaderValues(t *testing.T) {
 	}
 
 	w := httptest.NewRecorder()
-	err := CoreToHTTP(w, resp)
+	err := coreToHTTP(w, resp)
 
 	require.NoError(t, err)
 
@@ -298,7 +298,7 @@ func TestHTTPToCore_PreservesHeaders(t *testing.T) {
 	req.Header.Add("X-Custom", "value1")
 	req.Header.Add("X-Custom", "value2")
 
-	coreReq, err := HTTPToCore(req, map[string]string{})
+	coreReq, err := httpToCore(req, map[string]string{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "application/json", coreReq.Headers.Get("Content-Type"))
@@ -310,7 +310,7 @@ func TestHTTPToCore_URLEncoding(t *testing.T) {
 	encodedURL := "/api/search?q=hello%20world&filter=price%3E100"
 	req := httptest.NewRequest(http.MethodGet, encodedURL, http.NoBody)
 
-	coreReq, err := HTTPToCore(req, map[string]string{})
+	coreReq, err := httpToCore(req, map[string]string{})
 
 	require.NoError(t, err)
 	// url.Values automatically decodes
@@ -318,14 +318,14 @@ func TestHTTPToCore_URLEncoding(t *testing.T) {
 	assert.Equal(t, "price>100", coreReq.QueryParams.Get("filter"))
 }
 
-func TestRoundTrip_HTTPToCoreToHTTP(t *testing.T) {
+func TestRoundTrip_httpTocoreToHTTP(t *testing.T) {
 	// Create original HTTP request
 	originalReq := httptest.NewRequest(http.MethodPost, "/api/users?active=true", strings.NewReader("request data"))
 	originalReq.Header.Set("Content-Type", "application/json")
 	originalReq.Header.Set("Authorization", "Bearer token")
 
 	// Convert to core
-	_, err := HTTPToCore(originalReq, map[string]string{"id": "123"})
+	_, err := httpToCore(originalReq, map[string]string{"id": "123"})
 	require.NoError(t, err)
 
 	// Create core response
@@ -340,7 +340,7 @@ func TestRoundTrip_HTTPToCoreToHTTP(t *testing.T) {
 
 	// Convert core response to HTTP
 	w := httptest.NewRecorder()
-	err = CoreToHTTP(w, coreResp)
+	err = coreToHTTP(w, coreResp)
 	require.NoError(t, err)
 
 	// Verify

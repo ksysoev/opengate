@@ -10,7 +10,7 @@ import (
 	"github.com/ksysoev/opengate/pkg/core/middleware"
 	"github.com/ksysoev/opengate/pkg/core/proxy"
 	"github.com/ksysoev/opengate/pkg/core/redirect"
-	_ "github.com/ksysoev/opengate/pkg/middleware/oidc" // Register OIDC middleware
+	"github.com/ksysoev/opengate/pkg/middleware/oidc"
 	httpprov "github.com/ksysoev/opengate/pkg/prov/http"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
@@ -55,6 +55,13 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 
 	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
+
+	// Register middleware factories (only if not already registered)
+	if !middleware.GetRegistry().HasFactory("oidc") {
+		if err := middleware.Register("oidc", oidc.Create); err != nil {
+			return fmt.Errorf("failed to register oidc middleware: %w", err)
+		}
+	}
 
 	// Convert policy config to policies map
 	policies := cfg.Policies.ToPolicies()

@@ -42,12 +42,28 @@ func GetRegistry() *Registry {
 // Returns an error if a factory with the same name is already registered.
 // This is a convenience function that calls GetRegistry().Register().
 func Register(name string, factory FactoryFunc) error {
+	if name == "" {
+		return fmt.Errorf("middleware name cannot be empty")
+	}
+
+	if factory == nil {
+		return fmt.Errorf("factory cannot be nil")
+	}
+
 	return GetRegistry().Register(name, factory)
 }
 
 // Register adds a middleware factory function to the registry.
 // Returns an error if a factory with the same name is already registered.
 func (r *Registry) Register(name string, factory FactoryFunc) error {
+	if name == "" {
+		return fmt.Errorf("middleware name cannot be empty")
+	}
+
+	if factory == nil {
+		return fmt.Errorf("factory cannot be nil")
+	}
+
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -229,9 +245,16 @@ func (r *Registry) HasFactory(middlewareType string) bool {
 
 // resetRegistry resets the singleton for testing.
 // This is intentionally unexported - only accessible from tests in the same package.
+// WARNING: This function is not safe for concurrent use. Tests using it must ensure
+// no concurrent access to the registry occurs during reset.
 //
 //nolint:unused // Only used in tests
 func resetRegistry() {
+	if instance != nil {
+		instance.mu.Lock()
+		defer instance.mu.Unlock()
+	}
+
 	once = sync.Once{}
 	instance = nil
 }

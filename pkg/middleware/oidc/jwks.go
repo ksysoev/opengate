@@ -30,6 +30,10 @@ type JWKSCache struct {
 
 // NewJWKSCache creates a new JWKS cache with the given URI, TTL, and runtime.
 func NewJWKSCache(uri string, ttl time.Duration, runtime middleware.Runtime) *JWKSCache {
+	if runtime == nil {
+		panic("runtime cannot be nil")
+	}
+
 	if ttl == 0 {
 		ttl = time.Hour // Default to 1 hour
 	}

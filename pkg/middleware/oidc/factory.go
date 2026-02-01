@@ -8,12 +8,6 @@ import (
 	"github.com/mitchellh/mapstructure"
 )
 
-func init() {
-	if err := middleware.Register("oidc", Create); err != nil {
-		panic(fmt.Sprintf("failed to register oidc middleware: %v", err))
-	}
-}
-
 // Create is the factory function for OIDC middleware.
 // It decodes the configuration and creates a new OIDC middleware instance.
 func Create(runtime middleware.Runtime, rawConfig map[string]any) (middleware.Middleware, error) {

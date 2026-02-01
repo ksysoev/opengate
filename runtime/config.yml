@@ -12,19 +12,36 @@ http:
   disable_keep_alives: false
 
 # Policy definitions for middleware
-# policies:
-#   auth-google:
-#     type: oidc
-#     config:
-#       issuer: "https://accounts.google.com"
-#       audience: "your-app-client-id"
-#       jwks_uri: "https://www.googleapis.com/oauth2/v3/certs"
-#       jwks_cache_ttl: 1h
-#       claims_to_headers:
-#         - claim: "sub"
-#           header: "X-User-ID"
-#         - claim: "email"
-#           header: "X-User-Email"
-#       required_claims:
-#         - "sub"
-#         - "email"
+policies:
+  auth-google:
+    type: oidc
+    config:
+      issuer: "https://accounts.google.com"
+      audience: "your-app-client-id.apps.googleusercontent.com"
+      jwks_uri: "https://www.googleapis.com/oauth2/v3/certs"
+      jwks_cache_ttl: 1h
+      claims_to_headers:
+        - claim: "sub"
+          header: "X-User-ID"
+        - claim: "email"
+          header: "X-User-Email"
+        - claim: "name"
+          header: "X-User-Name"
+      required_claims:
+        - "sub"
+        - "email"
+  
+  auth-auth0:
+    type: oidc
+    config:
+      issuer: "https://your-domain.auth0.com/"
+      audience: "your-api-identifier"
+      jwks_uri: "https://your-domain.auth0.com/.well-known/jwks.json"
+      jwks_cache_ttl: 30m
+      claims_to_headers:
+        - claim: "sub"
+          header: "X-User-ID"
+        - claim: "permissions"
+          header: "X-User-Permissions"
+      required_claims:
+        - "sub"

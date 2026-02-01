@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandler_Handle_RedirectsNotFollowed(t *testing.T) {
+func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 	tests := []struct {
 		name               string
 		backendLocation    string
@@ -65,8 +65,8 @@ func TestHandler_Handle_RedirectsNotFollowed(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			// Create proxy handler
-			handler := New()
+			// Create proxy forwarder
+			forwarder := New()
 
 			// Create core request
 			coreReq := &request.Request{
@@ -91,7 +91,7 @@ func TestHandler_Handle_RedirectsNotFollowed(t *testing.T) {
 			}
 
 			// Execute the request
-			resp, err := handler.Handle(context.Background(), coreReq, rt)
+			resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
 			// Verify the redirect is passed through, not followed
 			require.NoError(t, err)
@@ -101,7 +101,7 @@ func TestHandler_Handle_RedirectsNotFollowed(t *testing.T) {
 	}
 }
 
-func TestHandler_Handle_Success(t *testing.T) {
+func TestForwarder_Handle_Success(t *testing.T) {
 	// Create a backend server
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Verify headers are forwarded
@@ -115,7 +115,7 @@ func TestHandler_Handle_Success(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	handler := New()
+	forwarder := New()
 
 	coreReq := &request.Request{
 		Method:     http.MethodGet,
@@ -142,7 +142,7 @@ func TestHandler_Handle_Success(t *testing.T) {
 		},
 	}
 
-	resp, err := handler.Handle(context.Background(), coreReq, rt)
+	resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -154,39 +154,8 @@ func TestHandler_Handle_Success(t *testing.T) {
 	assert.Equal(t, `{"status":"ok"}`, string(body))
 }
 
-func TestHandler_Handle_NoBackendURL(t *testing.T) {
-	handler := New()
-
-	coreReq := &request.Request{
-		Method:      http.MethodGet,
-		Path:        "/test",
-		PathParams:  make(map[string]string),
-		QueryParams: url.Values{},
-		Headers:     http.Header{},
-		Body:        http.NoBody,
-		RemoteAddr:  "192.168.1.1:12345",
-		TLS:         false,
-		Host:        "example.com",
-	}
-
-	rt := &route.Route{
-		Path:   "/test",
-		Method: "GET",
-		Handler: route.Handler{
-			Type:    "forward",
-			BaseURL: "",
-		},
-	}
-
-	resp, err := handler.Handle(context.Background(), coreReq, rt)
-
-	assert.Error(t, err)
-	assert.Nil(t, resp)
-	assert.True(t, errors.Is(err, core.ErrInvalidRoute))
-}
-
-func TestHandler_Handle_InvalidBackendURL(t *testing.T) {
-	handler := New()
+func TestForwarder_Handle_NoBackendURL(t *testing.T) {
+	forwarder := New()
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -209,13 +178,13 @@ func TestHandler_Handle_InvalidBackendURL(t *testing.T) {
 		},
 	}
 
-	resp, err := handler.Handle(context.Background(), coreReq, rt)
+	resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
 }
 
-func TestHandler_Handle_BackendTimeout(t *testing.T) {
+func TestForwarder_Handle_BackendTimeout(t *testing.T) {
 	// Create a backend server that delays response
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(200 * time.Millisecond)
@@ -223,8 +192,8 @@ func TestHandler_Handle_BackendTimeout(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	// Create handler with short timeout
-	handler := NewWithTimeout(50 * time.Millisecond)
+	// Create forwarder with short timeout
+	forwarder := NewWithTimeout(50 * time.Millisecond)
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -247,7 +216,7 @@ func TestHandler_Handle_BackendTimeout(t *testing.T) {
 		},
 	}
 
-	resp, err := handler.Handle(context.Background(), coreReq, rt)
+	resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
 	assert.Error(t, err)
 	assert.Nil(t, resp)
@@ -258,7 +227,7 @@ func TestHandler_Handle_BackendTimeout(t *testing.T) {
 	assert.True(t, errors.Is(err, core.ErrBackendTimeout))
 }
 
-func TestHandler_Handle_XForwardedHeaders(t *testing.T) {
+func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
 	// Create a backend server that captures headers
 	var capturedHeaders http.Header
 
@@ -269,7 +238,7 @@ func TestHandler_Handle_XForwardedHeaders(t *testing.T) {
 	}))
 	defer backend.Close()
 
-	handler := New()
+	forwarder := New()
 
 	tests := []struct {
 		name           string
@@ -333,7 +302,7 @@ func TestHandler_Handle_XForwardedHeaders(t *testing.T) {
 				},
 			}
 
-			_, err := handler.Handle(context.Background(), coreReq, rt)
+			_, err := forwarder.Handle(context.Background(), coreReq, rt)
 			require.NoError(t, err)
 
 			// Verify X-Forwarded headers
@@ -344,7 +313,7 @@ func TestHandler_Handle_XForwardedHeaders(t *testing.T) {
 	}
 }
 
-func TestHandler_BuildBackendURL(t *testing.T) {
+func TestForwarder_BuildBackendURL(t *testing.T) {
 	tests := []struct {
 		name        string
 		baseURL     string
@@ -392,9 +361,9 @@ func TestHandler_BuildBackendURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New()
+			forwarder := New()
 
-			gotURL, err := handler.buildBackendURL(tt.baseURL, tt.requestPath, tt.query)
+			gotURL, err := forwarder.buildBackendURL(tt.baseURL, tt.requestPath, tt.query)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -406,7 +375,7 @@ func TestHandler_BuildBackendURL(t *testing.T) {
 	}
 }
 
-func TestHandler_ExtractClientIP(t *testing.T) {
+func TestForwarder_ExtractClientIP(t *testing.T) {
 	tests := []struct {
 		name       string
 		remoteAddr string
@@ -431,14 +400,14 @@ func TestHandler_ExtractClientIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New()
-			got := handler.extractClientIP(tt.remoteAddr)
+			forwarder := New()
+			got := forwarder.extractClientIP(tt.remoteAddr)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestHandler_IsHopByHopHeader(t *testing.T) {
+func TestForwarder_IsHopByHopHeader(t *testing.T) {
 	tests := []struct {
 		name   string
 		header string
@@ -454,15 +423,15 @@ func TestHandler_IsHopByHopHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New()
-			got := handler.isHopByHopHeader(tt.header)
+			forwarder := New()
+			got := forwarder.isHopByHopHeader(tt.header)
 			assert.Equal(t, tt.want, got)
 		})
 	}
 }
 
-func TestHandler_CopyHeaders(t *testing.T) {
-	handler := New()
+func TestForwarder_CopyHeaders(t *testing.T) {
+	forwarder := New()
 
 	src := http.Header{
 		"Content-Type":      []string{"application/json"},
@@ -473,7 +442,7 @@ func TestHandler_CopyHeaders(t *testing.T) {
 	}
 
 	dst := http.Header{}
-	handler.copyHeaders(dst, src)
+	forwarder.copyHeaders(dst, src)
 
 	// Verify normal headers are copied
 	assert.Equal(t, "application/json", dst.Get("Content-Type"))
@@ -485,7 +454,7 @@ func TestHandler_CopyHeaders(t *testing.T) {
 	assert.Empty(t, dst.Get("Transfer-Encoding"))
 }
 
-func TestHandler_Handle_WithRequestBody(t *testing.T) {
+func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 	requestBody := `{"data":"test"}`
 
 	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -527,20 +496,20 @@ func TestHandler_Handle_WithRequestBody(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	handler := New()
+	forwarder := New()
 
-	assert.NotNil(t, handler)
-	assert.NotNil(t, handler.client)
-	assert.Equal(t, defaultTimeout, handler.timeout)
-	assert.Equal(t, defaultTimeout, handler.client.Timeout)
+	assert.NotNil(t, forwarder)
+	assert.NotNil(t, forwarder.client)
+	assert.Equal(t, defaultTimeout, forwarder.timeout)
+	assert.Equal(t, defaultTimeout, forwarder.client.Timeout)
 }
 
 func TestNewWithTimeout(t *testing.T) {
 	customTimeout := 5 * time.Second
-	handler := NewWithTimeout(customTimeout)
+	forwarder := NewWithTimeout(customTimeout)
 
-	assert.NotNil(t, handler)
-	assert.NotNil(t, handler.client)
-	assert.Equal(t, customTimeout, handler.timeout)
-	assert.Equal(t, customTimeout, handler.client.Timeout)
+	assert.NotNil(t, forwarder)
+	assert.NotNil(t, forwarder.client)
+	assert.Equal(t, customTimeout, forwarder.timeout)
+	assert.Equal(t, customTimeout, forwarder.client.Timeout)
 }

@@ -19,15 +19,15 @@ const (
 	defaultTimeout = 30 * time.Second
 )
 
-// Handler handles proxying HTTP requests to backend services.
-type Handler struct {
+// Forwarder handles forwarding HTTP requests to backend services.
+type Forwarder struct {
 	client  *http.Client
 	timeout time.Duration
 }
 
-// New creates a new proxy Handler instance.
-func New() *Handler {
-	return &Handler{
+// New creates a new proxy Forwarder instance.
+func New() *Forwarder {
+	return &Forwarder{
 		client: &http.Client{
 			Timeout: defaultTimeout,
 			CheckRedirect: func(req *http.Request, via []*http.Request) error {
@@ -38,8 +38,8 @@ func New() *Handler {
 	}
 }
 
-// NewWithTimeout creates a new proxy Handler with a custom timeout.
-func NewWithTimeout(timeout time.Duration) *Handler {
+// NewWithTimeout creates a new proxy Forwarder with a custom timeout.
+func NewWithTimeout(timeout time.Duration) *Forwarder {
 	h := New()
 	h.timeout = timeout
 	h.client.Timeout = timeout
@@ -47,31 +47,31 @@ func NewWithTimeout(timeout time.Duration) *Handler {
 	return h
 }
 
-// Handle implements core.Handler interface for proxying requests.
-func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
+// Handle implements core.Handler interface for forwarding requests.
+func (f *Forwarder) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
 	// Validate route configuration
 	if rt.Handler.BaseURL == "" {
 		return nil, fmt.Errorf("%w: no backend URL configured", core.ErrInvalidRoute)
 	}
 
 	// Build backend URL
-	backendURL, err := h.buildBackendURL(rt.Handler.BaseURL, req.Path, req.QueryParams)
+	backendURL, err := f.buildBackendURL(rt.Handler.BaseURL, req.Path, req.QueryParams)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build backend URL: %w", err)
 	}
 
 	// Create backend request
-	backendReq, err := h.createProxyRequest(ctx, req, backendURL)
+	backendReq, err := f.createProxyRequest(ctx, req, backendURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy request: %w", err)
 	}
 
 	// Execute request
 	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
-	resp, err := h.client.Do(backendReq)
+	resp, err := f.client.Do(backendReq)
 	if err != nil {
 		// Check if error is timeout-related
-		if h.isTimeoutError(err) {
+		if f.isTimeoutError(err) {
 			return nil, &core.BackendError{
 				Err:        fmt.Errorf("%w: %v", core.ErrBackendTimeout, err),
 				BackendURL: backendURL,
@@ -94,7 +94,7 @@ func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Ro
 }
 
 // buildBackendURL constructs the full backend URL.
-func (h *Handler) buildBackendURL(baseURL, reqPath string, queryParams url.Values) (string, error) {
+func (f *Forwarder) buildBackendURL(baseURL, reqPath string, queryParams url.Values) (string, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL: %w", err)
@@ -109,26 +109,26 @@ func (h *Handler) buildBackendURL(baseURL, reqPath string, queryParams url.Value
 }
 
 // createProxyRequest creates a new HTTP request for the backend.
-func (h *Handler) createProxyRequest(ctx context.Context, req *request.Request, backendURL string) (*http.Request, error) {
+func (f *Forwarder) createProxyRequest(ctx context.Context, req *request.Request, backendURL string) (*http.Request, error) {
 	proxyReq, err := http.NewRequestWithContext(ctx, req.Method, backendURL, req.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Copy headers
-	h.copyHeaders(proxyReq.Header, req.Headers)
+	f.copyHeaders(proxyReq.Header, req.Headers)
 
 	// Set X-Forwarded headers
-	h.setForwardedHeaders(proxyReq, req)
+	f.setForwardedHeaders(proxyReq, req)
 
 	return proxyReq, nil
 }
 
 // copyHeaders copies headers from source to destination.
-func (h *Handler) copyHeaders(dst, src http.Header) {
+func (f *Forwarder) copyHeaders(dst, src http.Header) {
 	for key, values := range src {
 		// Skip hop-by-hop headers
-		if h.isHopByHopHeader(key) {
+		if f.isHopByHopHeader(key) {
 			continue
 		}
 
@@ -139,7 +139,7 @@ func (h *Handler) copyHeaders(dst, src http.Header) {
 }
 
 // isHopByHopHeader checks if a header is a hop-by-hop header.
-func (h *Handler) isHopByHopHeader(header string) bool {
+func (f *Forwarder) isHopByHopHeader(header string) bool {
 	hopByHopHeaders := []string{
 		"Connection",
 		"Keep-Alive",
@@ -161,9 +161,9 @@ func (h *Handler) isHopByHopHeader(header string) bool {
 }
 
 // setForwardedHeaders sets X-Forwarded-* headers.
-func (h *Handler) setForwardedHeaders(proxyReq *http.Request, req *request.Request) {
+func (f *Forwarder) setForwardedHeaders(proxyReq *http.Request, req *request.Request) {
 	// Use RemoteAddr as the source of truth to prevent IP spoofing
-	clientIP := h.extractClientIP(req.RemoteAddr)
+	clientIP := f.extractClientIP(req.RemoteAddr)
 
 	// Append to existing X-Forwarded-For if present
 	if xff := req.Headers.Get("X-Forwarded-For"); xff != "" {
@@ -184,7 +184,7 @@ func (h *Handler) setForwardedHeaders(proxyReq *http.Request, req *request.Reque
 }
 
 // extractClientIP extracts the IP address from RemoteAddr.
-func (h *Handler) extractClientIP(remoteAddr string) string {
+func (f *Forwarder) extractClientIP(remoteAddr string) string {
 	// RemoteAddr is in format "IP:port"
 	if idx := strings.LastIndex(remoteAddr, ":"); idx > 0 {
 		return remoteAddr[:idx]
@@ -194,7 +194,7 @@ func (h *Handler) extractClientIP(remoteAddr string) string {
 }
 
 // isTimeoutError checks if an error is timeout-related.
-func (h *Handler) isTimeoutError(err error) bool {
+func (f *Forwarder) isTimeoutError(err error) bool {
 	// Check for context deadline exceeded
 	if errors.Is(err, context.DeadlineExceeded) {
 		return true

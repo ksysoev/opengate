@@ -9,8 +9,8 @@ import (
 	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
-// Router handles dynamic routing based on OpenAPI specification.
-type Router struct {
+// Matcher handles dynamic routing based on OpenAPI specification.
+type Matcher struct {
 	routes []routeEntry
 }
 
@@ -21,15 +21,15 @@ type routeEntry struct {
 	params  []string
 }
 
-// New creates a new Router instance.
-func New() *Router {
-	return &Router{
+// New creates a new Matcher instance.
+func New() *Matcher {
+	return &Matcher{
 		routes: make([]routeEntry, 0),
 	}
 }
 
-// AddRoute adds a route to the router.
-func (r *Router) AddRoute(rt *route.Route) error {
+// AddRoute adds a route to the matcher.
+func (m *Matcher) AddRoute(rt *route.Route) error {
 	pattern, params, err := pathToRegex(rt.Path)
 	if err != nil {
 		return fmt.Errorf("failed to convert path to regex: %w", err)
@@ -42,16 +42,16 @@ func (r *Router) AddRoute(rt *route.Route) error {
 		params:  params,
 	}
 
-	r.routes = append(r.routes, entry)
+	m.routes = append(m.routes, entry)
 
 	return nil
 }
 
 // Match finds a matching route for the given request.
 // Returns the route and path parameters if found, or an error if no match is found.
-func (r *Router) Match(method, path string) (*route.Route, map[string]string, error) {
-	for i := range r.routes {
-		entry := &r.routes[i]
+func (m *Matcher) Match(method, path string) (*route.Route, map[string]string, error) {
+	for i := range m.routes {
+		entry := &m.routes[i]
 		if entry.method != method {
 			continue
 		}
@@ -104,10 +104,10 @@ func pathToRegex(path string) (*regexp.Regexp, []string, error) {
 }
 
 // GetRoutes returns all registered routes.
-func (r *Router) GetRoutes() []route.Route {
-	routes := make([]route.Route, len(r.routes))
-	for i := range r.routes {
-		routes[i] = r.routes[i].route
+func (m *Matcher) GetRoutes() []route.Route {
+	routes := make([]route.Route, len(m.routes))
+	for i := range m.routes {
+		routes[i] = m.routes[i].route
 	}
 
 	return routes

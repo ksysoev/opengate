@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestHandler_Handle(t *testing.T) {
+func TestRedirector_Handle(t *testing.T) {
 	tests := []struct {
 		route          *route.Route
 		name           string
@@ -139,7 +139,7 @@ func TestHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := New()
+			redirector := New()
 
 			coreReq := &request.Request{
 				Method:      http.MethodGet,
@@ -153,7 +153,7 @@ func TestHandler_Handle(t *testing.T) {
 				Host:        "example.com",
 			}
 
-			resp, err := handler.Handle(context.Background(), coreReq, tt.route)
+			resp, err := redirector.Handle(context.Background(), coreReq, tt.route)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -173,8 +173,8 @@ func TestHandler_Handle(t *testing.T) {
 	}
 }
 
-func TestHandler_Handle_ErrorTypes(t *testing.T) {
-	handler := New()
+func TestRedirector_Handle_ErrorTypes(t *testing.T) {
+	redirector := New()
 
 	tests := []struct {
 		route      *route.Route
@@ -255,7 +255,7 @@ func TestHandler_Handle_ErrorTypes(t *testing.T) {
 				Host:        "example.com",
 			}
 
-			resp, err := handler.Handle(context.Background(), coreReq, tt.route)
+			resp, err := redirector.Handle(context.Background(), coreReq, tt.route)
 
 			require.Error(t, err)
 			assert.Nil(t, resp)
@@ -321,6 +321,6 @@ func TestIsValidRedirectStatus(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	handler := New()
-	assert.NotNil(t, handler)
+	redirector := New()
+	assert.NotNil(t, redirector)
 }

@@ -7,7 +7,7 @@ package api
 import (
 	context "context"
 
-	route "github.com/ksysoev/opengate/pkg/core/route"
+	request "github.com/ksysoev/opengate/pkg/core/request"
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -24,97 +24,61 @@ func (_m *MockService) EXPECT() *MockService_Expecter {
 	return &MockService_Expecter{mock: &_m.Mock}
 }
 
-// GetRoutes provides a mock function with given fields: ctx
-func (_m *MockService) GetRoutes(ctx context.Context) []route.Route {
-	ret := _m.Called(ctx)
+// HandleRequest provides a mock function with given fields: ctx, req
+func (_m *MockService) HandleRequest(ctx context.Context, req *request.Request) (*request.Response, error) {
+	ret := _m.Called(ctx, req)
 
 	if len(ret) == 0 {
-		panic("no return value specified for GetRoutes")
+		panic("no return value specified for HandleRequest")
 	}
 
-	var r0 []route.Route
-	if rf, ok := ret.Get(0).(func(context.Context) []route.Route); ok {
-		r0 = rf(ctx)
+	var r0 *request.Response
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, *request.Request) (*request.Response, error)); ok {
+		return rf(ctx, req)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, *request.Request) *request.Response); ok {
+		r0 = rf(ctx, req)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]route.Route)
+			r0 = ret.Get(0).(*request.Response)
 		}
 	}
 
-	return r0
-}
-
-// MockService_GetRoutes_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetRoutes'
-type MockService_GetRoutes_Call struct {
-	*mock.Call
-}
-
-// GetRoutes is a helper method to define mock.On call
-//   - ctx context.Context
-func (_e *MockService_Expecter) GetRoutes(ctx interface{}) *MockService_GetRoutes_Call {
-	return &MockService_GetRoutes_Call{Call: _e.mock.On("GetRoutes", ctx)}
-}
-
-func (_c *MockService_GetRoutes_Call) Run(run func(ctx context.Context)) *MockService_GetRoutes_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
-	})
-	return _c
-}
-
-func (_c *MockService_GetRoutes_Call) Return(_a0 []route.Route) *MockService_GetRoutes_Call {
-	_c.Call.Return(_a0)
-	return _c
-}
-
-func (_c *MockService_GetRoutes_Call) RunAndReturn(run func(context.Context) []route.Route) *MockService_GetRoutes_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// LoadSpec provides a mock function with given fields: ctx, specPath
-func (_m *MockService) LoadSpec(ctx context.Context, specPath string) error {
-	ret := _m.Called(ctx, specPath)
-
-	if len(ret) == 0 {
-		panic("no return value specified for LoadSpec")
-	}
-
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, specPath)
+	if rf, ok := ret.Get(1).(func(context.Context, *request.Request) error); ok {
+		r1 = rf(ctx, req)
 	} else {
-		r0 = ret.Error(0)
+		r1 = ret.Error(1)
 	}
 
-	return r0
+	return r0, r1
 }
 
-// MockService_LoadSpec_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'LoadSpec'
-type MockService_LoadSpec_Call struct {
+// MockService_HandleRequest_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HandleRequest'
+type MockService_HandleRequest_Call struct {
 	*mock.Call
 }
 
-// LoadSpec is a helper method to define mock.On call
+// HandleRequest is a helper method to define mock.On call
 //   - ctx context.Context
-//   - specPath string
-func (_e *MockService_Expecter) LoadSpec(ctx interface{}, specPath interface{}) *MockService_LoadSpec_Call {
-	return &MockService_LoadSpec_Call{Call: _e.mock.On("LoadSpec", ctx, specPath)}
+//   - req *request.Request
+func (_e *MockService_Expecter) HandleRequest(ctx interface{}, req interface{}) *MockService_HandleRequest_Call {
+	return &MockService_HandleRequest_Call{Call: _e.mock.On("HandleRequest", ctx, req)}
 }
 
-func (_c *MockService_LoadSpec_Call) Run(run func(ctx context.Context, specPath string)) *MockService_LoadSpec_Call {
+func (_c *MockService_HandleRequest_Call) Run(run func(ctx context.Context, req *request.Request)) *MockService_HandleRequest_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(*request.Request))
 	})
 	return _c
 }
 
-func (_c *MockService_LoadSpec_Call) Return(_a0 error) *MockService_LoadSpec_Call {
-	_c.Call.Return(_a0)
+func (_c *MockService_HandleRequest_Call) Return(_a0 *request.Response, _a1 error) *MockService_HandleRequest_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockService_LoadSpec_Call) RunAndReturn(run func(context.Context, string) error) *MockService_LoadSpec_Call {
+func (_c *MockService_HandleRequest_Call) RunAndReturn(run func(context.Context, *request.Request) (*request.Response, error)) *MockService_HandleRequest_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -10,14 +10,21 @@ import (
 
 	"github.com/ksysoev/opengate/pkg/api/middleware"
 	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/request"
 )
 
 const (
 	defaultTimeout = 30 * time.Second
 )
 
+// Service defines the interface for the core service that API depends on.
+// This interface is defined on the consumer side (API) and only includes methods used by API.
+type Service interface {
+	HandleRequest(ctx context.Context, req *request.Request) (*request.Response, error)
+}
+
 type API struct {
-	svc    *core.Service
+	svc    Service
 	config Config
 }
 
@@ -27,7 +34,7 @@ type Config struct {
 
 // New creates a new API instance with the provided configuration and core service.
 // It validates the configuration.
-func New(cfg Config, svc *core.Service) (*API, error) {
+func New(cfg Config, svc Service) (*API, error) {
 	if cfg.Listen == "" {
 		return nil, errors.New("listen address must be specified")
 	}

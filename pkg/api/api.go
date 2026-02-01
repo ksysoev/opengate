@@ -3,21 +3,28 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/ksysoev/opengate/pkg/core/route"
+	"github.com/ksysoev/opengate/pkg/api/middleware"
+	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/request"
 )
 
 const (
 	defaultTimeout = 30 * time.Second
 )
 
+// Service defines the interface for the core service that API depends on.
+// This interface is defined on the consumer side (API) and only includes methods used by API.
+type Service interface {
+	HandleRequest(ctx context.Context, req *request.Request) (*request.Response, error)
+}
+
 type API struct {
 	svc    Service
-	mux    http.Handler
 	config Config
 }
 
@@ -25,16 +32,11 @@ type Config struct {
 	Listen string `mapstructure:"listen"`
 }
 
-type Service interface {
-	LoadSpec(ctx context.Context, specPath string) error
-	GetRoutes(ctx context.Context) []route.Route
-}
-
-// New creates a new API instance with the provided configuration and service.
-// It validates the configuration and returns an error if the listen address is not specified.
+// New creates a new API instance with the provided configuration and core service.
+// It validates the configuration.
 func New(cfg Config, svc Service) (*API, error) {
 	if cfg.Listen == "" {
-		return nil, fmt.Errorf("listen address must be specified")
+		return nil, errors.New("listen address must be specified")
 	}
 
 	api := &API{
@@ -45,9 +47,34 @@ func New(cfg Config, svc Service) (*API, error) {
 	return api, nil
 }
 
-// SetMux sets the HTTP handler for the API.
-func (a *API) SetMux(mux http.Handler) {
-	a.mux = mux
+// ServeHTTP implements http.Handler interface.
+// It converts HTTP requests to core requests and delegates to the core service.
+func (a *API) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Convert HTTP request to core request
+	coreReq, err := httpToCore(r, nil)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Failed to convert request", "error", err)
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+
+		return
+	}
+
+	// Delegate to core service
+	coreResp, err := a.svc.HandleRequest(r.Context(), coreReq)
+	if err != nil {
+		slog.ErrorContext(r.Context(), "Request handling failed", "error", err,
+			"method", r.Method, "path", r.URL.Path)
+		status := errorToHTTPStatus(err)
+		http.Error(w, http.StatusText(status), status)
+
+		return
+	}
+
+	// Convert core response to HTTP response
+	if err := coreToHTTP(w, coreResp); err != nil {
+		slog.ErrorContext(r.Context(), "Failed to write response", "error", err)
+		// Response may be partially written, but log the error
+	}
 }
 
 // Run starts the API server with the provided configuration.
@@ -55,11 +82,15 @@ func (a *API) SetMux(mux http.Handler) {
 // The server will log any errors encountered during shutdown.
 // If the server fails to start, it returns an error.
 func (a *API) Run(ctx context.Context) error {
+	// Build middleware chain
+	withReqID := middleware.NewReqID()
+	handler := withReqID(a)
+
 	s := &http.Server{
 		Addr:              a.config.Listen,
 		ReadHeaderTimeout: defaultTimeout,
 		WriteTimeout:      defaultTimeout,
-		Handler:           a.mux,
+		Handler:           handler,
 	}
 
 	go func() {
@@ -77,4 +108,34 @@ func (a *API) Run(ctx context.Context) error {
 	}
 
 	return nil
+}
+
+// errorToHTTPStatus maps core errors to HTTP status codes.
+func errorToHTTPStatus(err error) int {
+	switch {
+	case errors.Is(err, core.ErrRouteNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, core.ErrInvalidRoute):
+		return http.StatusInternalServerError
+	case errors.Is(err, core.ErrInvalidRedirect):
+		return http.StatusInternalServerError
+	case errors.Is(err, core.ErrBackendTimeout):
+		return http.StatusGatewayTimeout
+	case errors.Is(err, core.ErrBackendFailed):
+		var backendErr *core.BackendError
+		if errors.As(err, &backendErr) && backendErr.StatusCode > 0 {
+			// Pass through backend status code
+			return backendErr.StatusCode
+		}
+
+		return http.StatusBadGateway
+	default:
+		// Check for RedirectError
+		var redirectErr *core.RedirectError
+		if errors.As(err, &redirectErr) {
+			return http.StatusInternalServerError
+		}
+
+		return http.StatusInternalServerError
+	}
 }

@@ -231,22 +231,12 @@ gateway:
 		TextFormat: true,
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	errChan := make(chan error, 1)
+	err = RunCommand(ctx, flags)
 
-	go func() {
-		errChan <- RunCommand(ctx, flags)
-	}()
-
-	// Wait for context cancellation or error
-	select {
-	case err := <-errChan:
-		if err != nil && ctx.Err() == nil {
-			t.Fatalf("Server returned unexpected error: %v", err)
-		}
-	case <-ctx.Done():
-		// Expected - context timeout
-	}
+	// Empty spec should fail with "no routes found" error
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no routes found")
 }

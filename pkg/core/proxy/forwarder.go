@@ -16,14 +16,23 @@ import (
 
 // Forwarder handles forwarding HTTP requests to backend services.
 type Forwarder struct {
-	runtime *core.Runtime
+	runtime core.Runtime
 }
 
 // New creates a new proxy Forwarder instance.
-func New(runtime *core.Runtime) *Forwarder {
+// Returns an error if runtime is nil or doesn't provide an HTTP client.
+func New(runtime core.Runtime) (*Forwarder, error) {
+	if runtime == nil {
+		return nil, fmt.Errorf("%w: runtime cannot be nil", core.ErrInvalidRuntime)
+	}
+
+	if runtime.GetHTTPClient() == nil {
+		return nil, fmt.Errorf("%w: HTTP client not configured", core.ErrInvalidRuntime)
+	}
+
 	return &Forwarder{
 		runtime: runtime,
-	}
+	}, nil
 }
 
 // Handle implements core.Handler interface for forwarding requests.
@@ -47,7 +56,7 @@ func (f *Forwarder) Handle(ctx context.Context, req *request.Request, rt *route.
 
 	// Execute request
 	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
-	resp, err := f.runtime.HTTP.Do(backendReq)
+	resp, err := f.runtime.GetHTTPClient().Do(backendReq)
 	if err != nil {
 		// Check if error is timeout-related
 		if f.isTimeoutError(err) {

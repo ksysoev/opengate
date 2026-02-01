@@ -18,6 +18,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// createMockRuntime is a helper to create a mock runtime with HTTP client
+func createMockRuntime(t *testing.T, mockHTTP *core.MockHTTPClient) core.Runtime {
+	t.Helper()
+
+	mockRuntime := core.NewMockRuntime(t)
+	mockRuntime.EXPECT().GetHTTPClient().Return(mockHTTP).Maybe()
+
+	return mockRuntime
+}
+
 func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 	tests := []struct {
 		name               string
@@ -65,9 +75,9 @@ func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 			}))
 			defer backend.Close()
 
-			// Create mock HTTP client
+			// Create mock runtime
 			mockHTTP := core.NewMockHTTPClient(t)
-			runtime := &core.Runtime{HTTP: mockHTTP}
+			mockRuntime := createMockRuntime(t, mockHTTP)
 
 			// Setup expectation
 			mockHTTP.EXPECT().Do(mock.MatchedBy(func(req *http.Request) bool {
@@ -81,7 +91,8 @@ func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 			}, nil)
 
 			// Create proxy forwarder
-			forwarder := New(runtime)
+			forwarder, err := New(mockRuntime)
+			require.NoError(t, err)
 
 			// Create core request
 			coreReq := &request.Request{
@@ -119,9 +130,10 @@ func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 func TestForwarder_Handle_Success(t *testing.T) {
 	// Create mock HTTP client
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
+	mockRuntime := createMockRuntime(t, mockHTTP)
 
-	forwarder := New(runtime)
+	forwarder, err := New(mockRuntime)
+	require.NoError(t, err)
 
 	coreReq := &request.Request{
 		Method:     http.MethodGet,
@@ -179,8 +191,10 @@ func TestForwarder_Handle_Success(t *testing.T) {
 
 func TestForwarder_Handle_NoBackendURL(t *testing.T) {
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
-	forwarder := New(runtime)
+	mockRuntime := createMockRuntime(t, mockHTTP)
+
+	forwarder, err := New(mockRuntime)
+	require.NoError(t, err)
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -211,8 +225,10 @@ func TestForwarder_Handle_NoBackendURL(t *testing.T) {
 
 func TestForwarder_Handle_BackendTimeout(t *testing.T) {
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
-	forwarder := New(runtime)
+	mockRuntime := createMockRuntime(t, mockHTTP)
+
+	forwarder, err := New(mockRuntime)
+	require.NoError(t, err)
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -287,8 +303,10 @@ func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHTTP := core.NewMockHTTPClient(t)
-			runtime := &core.Runtime{HTTP: mockHTTP}
-			forwarder := New(runtime)
+			mockRuntime := createMockRuntime(t, mockHTTP)
+
+			forwarder, err := New(mockRuntime)
+			require.NoError(t, err)
 
 			headers := http.Header{}
 			if tt.existingXFF != "" {
@@ -329,7 +347,7 @@ func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
 				Body:       http.NoBody,
 			}, nil)
 
-			_, err := forwarder.Handle(context.Background(), coreReq, rt)
+			_, err = forwarder.Handle(context.Background(), coreReq, rt)
 			require.NoError(t, err)
 		})
 	}
@@ -384,8 +402,10 @@ func TestForwarder_BuildBackendURL(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHTTP := core.NewMockHTTPClient(t)
-			runtime := &core.Runtime{HTTP: mockHTTP}
-			forwarder := New(runtime)
+			mockRuntime := createMockRuntime(t, mockHTTP)
+
+			forwarder, err := New(mockRuntime)
+			require.NoError(t, err)
 
 			gotURL, err := forwarder.buildBackendURL(tt.baseURL, tt.requestPath, tt.query)
 
@@ -425,8 +445,11 @@ func TestForwarder_ExtractClientIP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHTTP := core.NewMockHTTPClient(t)
-			runtime := &core.Runtime{HTTP: mockHTTP}
-			forwarder := New(runtime)
+			mockRuntime := createMockRuntime(t, mockHTTP)
+
+			forwarder, err := New(mockRuntime)
+			require.NoError(t, err)
+
 			got := forwarder.extractClientIP(tt.remoteAddr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -450,8 +473,11 @@ func TestForwarder_IsHopByHopHeader(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			mockHTTP := core.NewMockHTTPClient(t)
-			runtime := &core.Runtime{HTTP: mockHTTP}
-			forwarder := New(runtime)
+			mockRuntime := createMockRuntime(t, mockHTTP)
+
+			forwarder, err := New(mockRuntime)
+			require.NoError(t, err)
+
 			got := forwarder.isHopByHopHeader(tt.header)
 			assert.Equal(t, tt.want, got)
 		})
@@ -460,8 +486,10 @@ func TestForwarder_IsHopByHopHeader(t *testing.T) {
 
 func TestForwarder_CopyHeaders(t *testing.T) {
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
-	forwarder := New(runtime)
+	mockRuntime := createMockRuntime(t, mockHTTP)
+
+	forwarder, err := New(mockRuntime)
+	require.NoError(t, err)
 
 	src := http.Header{
 		"Content-Type":      []string{"application/json"},
@@ -488,8 +516,10 @@ func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 	requestBody := `{"data":"test"}`
 
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
-	handler := New(runtime)
+	mockRuntime := createMockRuntime(t, mockHTTP)
+
+	handler, err := New(mockRuntime)
+	require.NoError(t, err)
 
 	coreReq := &request.Request{
 		Method:      http.MethodPost,
@@ -535,10 +565,30 @@ func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 
 func TestNew(t *testing.T) {
 	mockHTTP := core.NewMockHTTPClient(t)
-	runtime := &core.Runtime{HTTP: mockHTTP}
-	forwarder := New(runtime)
+	mockRuntime := createMockRuntime(t, mockHTTP)
 
+	forwarder, err := New(mockRuntime)
+
+	assert.NoError(t, err)
 	assert.NotNil(t, forwarder)
 	assert.NotNil(t, forwarder.runtime)
-	assert.Equal(t, mockHTTP, forwarder.runtime.HTTP)
+}
+
+func TestNew_NilRuntime(t *testing.T) {
+	forwarder, err := New(nil)
+
+	assert.Error(t, err)
+	assert.Nil(t, forwarder)
+	assert.ErrorIs(t, err, core.ErrInvalidRuntime)
+}
+
+func TestNew_NilHTTPClient(t *testing.T) {
+	mockRuntime := core.NewMockRuntime(t)
+	mockRuntime.EXPECT().GetHTTPClient().Return(nil)
+
+	forwarder, err := New(mockRuntime)
+
+	assert.Error(t, err)
+	assert.Nil(t, forwarder)
+	assert.ErrorIs(t, err, core.ErrInvalidRuntime)
 }

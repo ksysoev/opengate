@@ -9,6 +9,7 @@ var (
 	ErrBackendFailed   = fmt.Errorf("backend request failed")
 	ErrBackendTimeout  = fmt.Errorf("backend request timeout")
 	ErrInvalidRedirect = fmt.Errorf("invalid redirect configuration")
+	ErrInvalidRuntime  = fmt.Errorf("invalid runtime configuration")
 )
 
 // BackendError wraps backend-specific errors with context.

@@ -33,8 +33,9 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	httpClient := httpprov.New(cfg.HTTP)
 
 	// Create runtime with providers
-	runtime := &core.Runtime{
-		HTTP: httpClient,
+	runtime, err := core.NewRuntime(httpClient)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
 	}
 
 	// Create core service
@@ -42,7 +43,12 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	svc := core.New(parser)
 
 	// Register handlers with runtime
-	svc.RegisterHandler("forward", proxy.New(runtime))
+	forwarder, err := proxy.New(runtime)
+	if err != nil {
+		return fmt.Errorf("failed to create forwarder: %w", err)
+	}
+
+	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
 
 	// Load OpenAPI specification

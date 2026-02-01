@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestRouter_AddRoute(t *testing.T) {
+func TestMatcher_AddRoute(t *testing.T) {
 	tests := []struct {
 		name    string
 		route   route.Route
@@ -53,8 +53,8 @@ func TestRouter_AddRoute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New()
-			err := r.AddRoute(&tt.route)
+			m := New()
+			err := m.AddRoute(&tt.route)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -65,7 +65,7 @@ func TestRouter_AddRoute(t *testing.T) {
 	}
 }
 
-func TestRouter_Match(t *testing.T) {
+func TestMatcher_Match(t *testing.T) {
 	tests := []struct {
 		wantParams  map[string]string
 		name        string
@@ -142,12 +142,12 @@ func TestRouter_Match(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			r := New()
+			m := New()
 			for i := range tt.routes {
-				require.NoError(t, r.AddRoute(&tt.routes[i]))
+				require.NoError(t, m.AddRoute(&tt.routes[i]))
 			}
 
-			matchedRoute, params, err := r.Match(tt.method, tt.path)
+			matchedRoute, params, err := m.Match(tt.method, tt.path)
 
 			if !tt.wantMatch {
 				assert.Error(t, err)
@@ -164,8 +164,8 @@ func TestRouter_Match(t *testing.T) {
 	}
 }
 
-func TestRouter_GetRoutes(t *testing.T) {
-	r := New()
+func TestMatcher_GetRoutes(t *testing.T) {
+	m := New()
 
 	routes := []route.Route{
 		{Path: "/users", Method: "GET"},
@@ -174,10 +174,10 @@ func TestRouter_GetRoutes(t *testing.T) {
 	}
 
 	for i := range routes {
-		require.NoError(t, r.AddRoute(&routes[i]))
+		require.NoError(t, m.AddRoute(&routes[i]))
 	}
 
-	gotRoutes := r.GetRoutes()
+	gotRoutes := m.GetRoutes()
 	assert.Len(t, gotRoutes, 3)
 }
 

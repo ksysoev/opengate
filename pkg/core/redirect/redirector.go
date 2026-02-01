@@ -11,16 +11,16 @@ import (
 	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
-// Handler handles HTTP redirects.
-type Handler struct{}
+// Redirector handles HTTP redirects.
+type Redirector struct{}
 
-// New creates a new redirect Handler instance.
-func New() *Handler {
-	return &Handler{}
+// New creates a new redirect Redirector instance.
+func New() *Redirector {
+	return &Redirector{}
 }
 
 // Handle implements core.Handler interface for redirecting requests.
-func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
+func (r *Redirector) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
 	// Validate configuration
 	if rt.Handler.Location == "" {
 		return nil, &core.RedirectError{

@@ -19,7 +19,7 @@ type specParser interface {
 // Service encapsulates core business logic and dependencies.
 type Service struct {
 	parser   specParser
-	router   *router.Router
+	matcher  *router.Matcher
 	handlers map[string]Handler
 	routes   []route.Route
 }
@@ -28,7 +28,7 @@ type Service struct {
 func New(parser specParser) *Service {
 	return &Service{
 		parser:   parser,
-		router:   router.New(),
+		matcher:  router.New(),
 		handlers: make(map[string]Handler),
 		routes:   make([]route.Route, 0),
 	}
@@ -50,13 +50,13 @@ func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 		return fmt.Errorf("no routes found in spec file")
 	}
 
-	// Reset router and routes to prevent duplicates on reload
-	s.router = router.New()
+	// Reset matcher and routes to prevent duplicates on reload
+	s.matcher = router.New()
 	s.routes = routes
 
-	// Register routes with router
+	// Register routes with matcher
 	for i := range s.routes {
-		if err := s.router.AddRoute(&s.routes[i]); err != nil {
+		if err := s.matcher.AddRoute(&s.routes[i]); err != nil {
 			return fmt.Errorf("failed to add route: %w", err)
 		}
 
@@ -90,7 +90,7 @@ func (s *Service) LoadSpec(ctx context.Context, specPath string) error {
 // HandleRequest processes a request by routing it to the appropriate handler.
 func (s *Service) HandleRequest(ctx context.Context, req *request.Request) (*request.Response, error) {
 	// Match the route
-	rt, params, err := s.router.Match(req.Method, req.Path)
+	rt, params, err := s.matcher.Match(req.Method, req.Path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %s %s", ErrRouteNotFound, req.Method, req.Path)
 	}

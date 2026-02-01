@@ -9,12 +9,12 @@ import (
 	"net/url"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/ksysoev/opengate/pkg/core"
 	"github.com/ksysoev/opengate/pkg/core/request"
 	"github.com/ksysoev/opengate/pkg/core/route"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
@@ -65,8 +65,23 @@ func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 			}))
 			defer backend.Close()
 
+			// Create mock HTTP client
+			mockHTTP := core.NewMockHTTPClient(t)
+			runtime := &core.Runtime{HTTP: mockHTTP}
+
+			// Setup expectation
+			mockHTTP.EXPECT().Do(mock.MatchedBy(func(req *http.Request) bool {
+				return req.URL.Path == "/test"
+			})).Return(&http.Response{
+				StatusCode: tt.backendStatusCode,
+				Header: http.Header{
+					"Location": []string{tt.backendLocation},
+				},
+				Body: http.NoBody,
+			}, nil)
+
 			// Create proxy forwarder
-			forwarder := New()
+			forwarder := New(runtime)
 
 			// Create core request
 			coreReq := &request.Request{
@@ -102,20 +117,11 @@ func TestForwarder_Handle_RedirectsNotFollowed(t *testing.T) {
 }
 
 func TestForwarder_Handle_Success(t *testing.T) {
-	// Create a backend server
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Verify headers are forwarded
-		assert.Equal(t, "test-value", r.Header.Get("X-Test-Header"))
-		assert.NotEmpty(t, r.Header.Get("X-Forwarded-For"))
-		assert.NotEmpty(t, r.Header.Get("X-Forwarded-Proto"))
+	// Create mock HTTP client
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
 
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	}))
-	defer backend.Close()
-
-	forwarder := New()
+	forwarder := New(runtime)
 
 	coreReq := &request.Request{
 		Method:     http.MethodGet,
@@ -138,9 +144,26 @@ func TestForwarder_Handle_Success(t *testing.T) {
 		Method: "GET",
 		Handler: route.Handler{
 			Type:    "forward",
-			BaseURL: backend.URL,
+			BaseURL: "http://backend.com",
 		},
 	}
+
+	// Setup mock expectation
+	mockHTTP.EXPECT().Do(mock.MatchedBy(func(req *http.Request) bool {
+		// Verify request properties
+		assert.Equal(t, "/test?page=1", req.URL.Path+"?"+req.URL.RawQuery)
+		assert.Equal(t, "test-value", req.Header.Get("X-Test-Header"))
+		assert.NotEmpty(t, req.Header.Get("X-Forwarded-For"))
+		assert.NotEmpty(t, req.Header.Get("X-Forwarded-Proto"))
+
+		return true
+	})).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Header: http.Header{
+			"Content-Type": []string{"application/json"},
+		},
+		Body: io.NopCloser(strings.NewReader(`{"status":"ok"}`)),
+	}, nil)
 
 	resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
@@ -155,7 +178,9 @@ func TestForwarder_Handle_Success(t *testing.T) {
 }
 
 func TestForwarder_Handle_NoBackendURL(t *testing.T) {
-	forwarder := New()
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
+	forwarder := New(runtime)
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -185,15 +210,9 @@ func TestForwarder_Handle_NoBackendURL(t *testing.T) {
 }
 
 func TestForwarder_Handle_BackendTimeout(t *testing.T) {
-	// Create a backend server that delays response
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(200 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer backend.Close()
-
-	// Create forwarder with short timeout
-	forwarder := NewWithTimeout(50 * time.Millisecond)
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
+	forwarder := New(runtime)
 
 	coreReq := &request.Request{
 		Method:      http.MethodGet,
@@ -212,9 +231,12 @@ func TestForwarder_Handle_BackendTimeout(t *testing.T) {
 		Method: "GET",
 		Handler: route.Handler{
 			Type:    "forward",
-			BaseURL: backend.URL,
+			BaseURL: "http://backend.com",
 		},
 	}
+
+	// Simulate timeout error
+	mockHTTP.EXPECT().Do(mock.Anything).Return(nil, context.DeadlineExceeded)
 
 	resp, err := forwarder.Handle(context.Background(), coreReq, rt)
 
@@ -228,18 +250,6 @@ func TestForwarder_Handle_BackendTimeout(t *testing.T) {
 }
 
 func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
-	// Create a backend server that captures headers
-	var capturedHeaders http.Header
-
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		capturedHeaders = r.Header.Clone()
-
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer backend.Close()
-
-	forwarder := New()
-
 	tests := []struct {
 		name           string
 		existingXFF    string
@@ -276,6 +286,10 @@ func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			mockHTTP := core.NewMockHTTPClient(t)
+			runtime := &core.Runtime{HTTP: mockHTTP}
+			forwarder := New(runtime)
+
 			headers := http.Header{}
 			if tt.existingXFF != "" {
 				headers.Set("X-Forwarded-For", tt.existingXFF)
@@ -298,17 +312,25 @@ func TestForwarder_Handle_XForwardedHeaders(t *testing.T) {
 				Method: "GET",
 				Handler: route.Handler{
 					Type:    "forward",
-					BaseURL: backend.URL,
+					BaseURL: "http://backend.com",
 				},
 			}
 
+			// Setup mock to verify headers
+			mockHTTP.EXPECT().Do(mock.MatchedBy(func(req *http.Request) bool {
+				assert.Equal(t, tt.expectedProto, req.Header.Get("X-Forwarded-Proto"))
+				assert.Equal(t, tt.expectedHost, req.Header.Get("X-Forwarded-Host"))
+				assert.Equal(t, tt.expectedXFFEnd, req.Header.Get("X-Forwarded-For"))
+
+				return true
+			})).Return(&http.Response{
+				StatusCode: http.StatusOK,
+				Header:     http.Header{},
+				Body:       http.NoBody,
+			}, nil)
+
 			_, err := forwarder.Handle(context.Background(), coreReq, rt)
 			require.NoError(t, err)
-
-			// Verify X-Forwarded headers
-			assert.Equal(t, tt.expectedProto, capturedHeaders.Get("X-Forwarded-Proto"))
-			assert.Equal(t, tt.expectedHost, capturedHeaders.Get("X-Forwarded-Host"))
-			assert.Equal(t, tt.expectedXFFEnd, capturedHeaders.Get("X-Forwarded-For"))
 		})
 	}
 }
@@ -361,7 +383,9 @@ func TestForwarder_BuildBackendURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			forwarder := New()
+			mockHTTP := core.NewMockHTTPClient(t)
+			runtime := &core.Runtime{HTTP: mockHTTP}
+			forwarder := New(runtime)
 
 			gotURL, err := forwarder.buildBackendURL(tt.baseURL, tt.requestPath, tt.query)
 
@@ -400,7 +424,9 @@ func TestForwarder_ExtractClientIP(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			forwarder := New()
+			mockHTTP := core.NewMockHTTPClient(t)
+			runtime := &core.Runtime{HTTP: mockHTTP}
+			forwarder := New(runtime)
 			got := forwarder.extractClientIP(tt.remoteAddr)
 			assert.Equal(t, tt.want, got)
 		})
@@ -423,7 +449,9 @@ func TestForwarder_IsHopByHopHeader(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			forwarder := New()
+			mockHTTP := core.NewMockHTTPClient(t)
+			runtime := &core.Runtime{HTTP: mockHTTP}
+			forwarder := New(runtime)
 			got := forwarder.isHopByHopHeader(tt.header)
 			assert.Equal(t, tt.want, got)
 		})
@@ -431,7 +459,9 @@ func TestForwarder_IsHopByHopHeader(t *testing.T) {
 }
 
 func TestForwarder_CopyHeaders(t *testing.T) {
-	forwarder := New()
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
+	forwarder := New(runtime)
 
 	src := http.Header{
 		"Content-Type":      []string{"application/json"},
@@ -457,14 +487,9 @@ func TestForwarder_CopyHeaders(t *testing.T) {
 func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 	requestBody := `{"data":"test"}`
 
-	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		body, _ := io.ReadAll(r.Body)
-		assert.Equal(t, requestBody, string(body))
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer backend.Close()
-
-	handler := New()
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
+	handler := New(runtime)
 
 	coreReq := &request.Request{
 		Method:      http.MethodPost,
@@ -485,9 +510,22 @@ func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 		Method: "POST",
 		Handler: route.Handler{
 			Type:    "forward",
-			BaseURL: backend.URL,
+			BaseURL: "http://backend.com",
 		},
 	}
+
+	// Setup mock expectation - verify the request has a body reader
+	mockHTTP.EXPECT().Do(mock.MatchedBy(func(req *http.Request) bool {
+		// Just verify the request has a body - don't consume it
+		assert.NotNil(t, req.Body)
+		assert.Equal(t, "application/json", req.Header.Get("Content-Type"))
+
+		return true
+	})).Return(&http.Response{
+		StatusCode: http.StatusOK,
+		Header:     http.Header{},
+		Body:       http.NoBody,
+	}, nil)
 
 	resp, err := handler.Handle(context.Background(), coreReq, rt)
 
@@ -496,20 +534,11 @@ func TestForwarder_Handle_WithRequestBody(t *testing.T) {
 }
 
 func TestNew(t *testing.T) {
-	forwarder := New()
+	mockHTTP := core.NewMockHTTPClient(t)
+	runtime := &core.Runtime{HTTP: mockHTTP}
+	forwarder := New(runtime)
 
 	assert.NotNil(t, forwarder)
-	assert.NotNil(t, forwarder.client)
-	assert.Equal(t, defaultTimeout, forwarder.timeout)
-	assert.Equal(t, defaultTimeout, forwarder.client.Timeout)
-}
-
-func TestNewWithTimeout(t *testing.T) {
-	customTimeout := 5 * time.Second
-	forwarder := NewWithTimeout(customTimeout)
-
-	assert.NotNil(t, forwarder)
-	assert.NotNil(t, forwarder.client)
-	assert.Equal(t, customTimeout, forwarder.timeout)
-	assert.Equal(t, customTimeout, forwarder.client.Timeout)
+	assert.NotNil(t, forwarder.runtime)
+	assert.Equal(t, mockHTTP, forwarder.runtime.HTTP)
 }

@@ -8,43 +8,22 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/ksysoev/opengate/pkg/core"
 	"github.com/ksysoev/opengate/pkg/core/request"
 	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
-const (
-	defaultTimeout = 30 * time.Second
-)
-
 // Forwarder handles forwarding HTTP requests to backend services.
 type Forwarder struct {
-	client  *http.Client
-	timeout time.Duration
+	runtime *core.Runtime
 }
 
 // New creates a new proxy Forwarder instance.
-func New() *Forwarder {
+func New(runtime *core.Runtime) *Forwarder {
 	return &Forwarder{
-		client: &http.Client{
-			Timeout: defaultTimeout,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
-		},
-		timeout: defaultTimeout,
+		runtime: runtime,
 	}
-}
-
-// NewWithTimeout creates a new proxy Forwarder with a custom timeout.
-func NewWithTimeout(timeout time.Duration) *Forwarder {
-	h := New()
-	h.timeout = timeout
-	h.client.Timeout = timeout
-
-	return h
 }
 
 // Handle implements core.Handler interface for forwarding requests.
@@ -68,7 +47,7 @@ func (f *Forwarder) Handle(ctx context.Context, req *request.Request, rt *route.
 
 	// Execute request
 	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
-	resp, err := f.client.Do(backendReq)
+	resp, err := f.runtime.HTTP.Do(backendReq)
 	if err != nil {
 		// Check if error is timeout-related
 		if f.isTimeoutError(err) {

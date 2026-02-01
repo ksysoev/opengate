@@ -12,16 +12,17 @@ import (
 
 // Chain manages middleware instances and builds execution chains for routes.
 type Chain struct {
-	registry        *Registry
+	runtime         Runtime
 	policies        map[string]policy.Policy
 	middlewareCache map[string]Middleware
 	mu              sync.RWMutex
 }
 
 // NewChain creates a new middleware chain builder.
-func NewChain(registry *Registry, policies map[string]policy.Policy) (*Chain, error) {
-	if registry == nil {
-		return nil, fmt.Errorf("registry cannot be nil")
+// The runtime is used when creating middleware instances.
+func NewChain(runtime Runtime, policies map[string]policy.Policy) (*Chain, error) {
+	if runtime == nil {
+		return nil, fmt.Errorf("runtime cannot be nil")
 	}
 
 	if policies == nil {
@@ -29,7 +30,7 @@ func NewChain(registry *Registry, policies map[string]policy.Policy) (*Chain, er
 	}
 
 	return &Chain{
-		registry:        registry,
+		runtime:         runtime,
 		policies:        policies,
 		middlewareCache: make(map[string]Middleware),
 	}, nil
@@ -100,7 +101,7 @@ func (c *Chain) getOrCreateMiddleware(policyName string) (Middleware, error) {
 	}
 
 	// Create middleware
-	middleware, err := c.registry.CreateMiddleware(pol)
+	middleware, err := GetRegistry().CreateMiddleware(pol, c.runtime)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +122,7 @@ func (c *Chain) ValidatePolicies(policyNames []string) error {
 			return fmt.Errorf("policy %q not found", policyName)
 		}
 
-		if !c.registry.HasFactory(pol.Type) {
+		if !GetRegistry().HasFactory(pol.Type) {
 			return fmt.Errorf("no middleware factory registered for type %q (policy %q)", pol.Type, policyName)
 		}
 	}

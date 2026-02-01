@@ -10,31 +10,35 @@ import (
 	"log/slog"
 	"math/big"
 	"net/http"
+	"net/url"
 	"sync"
 	"time"
+
+	"github.com/ksysoev/opengate/pkg/core/middleware"
+	"github.com/ksysoev/opengate/pkg/core/request"
 )
 
 // JWKSCache manages lazy caching of JWKS keys with TTL-based expiration.
 type JWKSCache struct {
 	expires time.Time
 	keys    map[string]*rsa.PublicKey
-	client  *http.Client
+	runtime middleware.Runtime
 	uri     string
 	ttl     time.Duration
 	mu      sync.RWMutex
 }
 
-// NewJWKSCache creates a new JWKS cache with the given URI, TTL, and HTTP client.
-func NewJWKSCache(uri string, ttl time.Duration, client *http.Client) *JWKSCache {
+// NewJWKSCache creates a new JWKS cache with the given URI, TTL, and runtime.
+func NewJWKSCache(uri string, ttl time.Duration, runtime middleware.Runtime) *JWKSCache {
 	if ttl == 0 {
 		ttl = time.Hour // Default to 1 hour
 	}
 
 	return &JWKSCache{
-		uri:    uri,
-		ttl:    ttl,
-		keys:   make(map[string]*rsa.PublicKey),
-		client: client,
+		uri:     uri,
+		ttl:     ttl,
+		keys:    make(map[string]*rsa.PublicKey),
+		runtime: runtime,
 	}
 }
 
@@ -68,13 +72,20 @@ func (c *JWKSCache) refresh(ctx context.Context, kid string) (*rsa.PublicKey, er
 		}
 	}
 
-	// Fetch JWKS
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.uri, http.NoBody)
+	// Fetch JWKS using runtime
+	jwksURL, err := url.Parse(c.uri)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create JWKS request: %w", err)
+		return nil, fmt.Errorf("failed to parse JWKS URI: %w", err)
 	}
 
-	resp, err := c.client.Do(req)
+	req := &request.Request{
+		Method:  http.MethodGet,
+		URL:     jwksURL,
+		Headers: http.Header{},
+		Body:    http.NoBody,
+	}
+
+	resp, err := c.runtime.SendRequest(ctx, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch JWKS: %w", err)
 	}

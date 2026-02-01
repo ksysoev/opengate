@@ -16,4 +16,8 @@ packages:
       specParser:
       Handler:
       Runtime:
- 
+  github.com/ksysoev/opengate/pkg/core/middleware:
+    interfaces:
+      Runtime:
+      Middleware:
+

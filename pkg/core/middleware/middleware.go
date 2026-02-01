@@ -25,14 +25,15 @@ type Middleware interface {
 	Process(ctx context.Context, req *request.Request, next HandlerFunc) (*request.Response, error)
 }
 
-// MiddlewareFactory creates middleware instances from configuration.
-// Each middleware type (oidc, rate-limit, etc.) implements this interface.
-type MiddlewareFactory interface {
-	// Create builds a configured middleware instance from raw config map.
-	// Returns an error if the configuration is invalid or incomplete.
-	Create(config map[string]interface{}) (Middleware, error)
-
-	// Type returns the middleware type identifier (e.g., "oidc", "rate-limit").
-	// This is used to match policy types in config.yml to factory implementations.
-	Type() string
+// Runtime provides capabilities that middlewares may need during request processing.
+// This interface is satisfied by core.Runtime, avoiding import cycles.
+type Runtime interface {
+	// SendRequest sends a request to the target URL specified in req.URL.
+	// Returns the response or an error if the request fails.
+	SendRequest(ctx context.Context, req *request.Request) (*request.Response, error)
 }
+
+// FactoryFunc is the standard function signature for creating middlewares.
+// It receives runtime for making external calls and raw configuration.
+// Middleware implementations register factory functions via Register().
+type FactoryFunc func(runtime Runtime, config map[string]any) (Middleware, error)

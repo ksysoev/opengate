@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math/big"
 	"net/http"
 	"sync"
@@ -23,8 +24,8 @@ type JWKSCache struct {
 	mu      sync.RWMutex
 }
 
-// NewJWKSCache creates a new JWKS cache with the given URI and TTL.
-func NewJWKSCache(uri string, ttl time.Duration) *JWKSCache {
+// NewJWKSCache creates a new JWKS cache with the given URI, TTL, and HTTP client.
+func NewJWKSCache(uri string, ttl time.Duration, client *http.Client) *JWKSCache {
 	if ttl == 0 {
 		ttl = time.Hour // Default to 1 hour
 	}
@@ -33,7 +34,7 @@ func NewJWKSCache(uri string, ttl time.Duration) *JWKSCache {
 		uri:    uri,
 		ttl:    ttl,
 		keys:   make(map[string]*rsa.PublicKey),
-		client: &http.Client{Timeout: 10 * time.Second},
+		client: client,
 	}
 }
 
@@ -100,6 +101,7 @@ func (c *JWKSCache) refresh(ctx context.Context, kid string) (*rsa.PublicKey, er
 
 	// Parse keys
 	newKeys := make(map[string]*rsa.PublicKey)
+	failedCount := 0
 
 	for _, jwk := range jwks.Keys {
 		if jwk.Kty != "RSA" {
@@ -109,22 +111,60 @@ func (c *JWKSCache) refresh(ctx context.Context, kid string) (*rsa.PublicKey, er
 		// Decode N (modulus)
 		nBytes, err := base64.RawURLEncoding.DecodeString(jwk.N)
 		if err != nil {
+			slog.Warn("Failed to decode RSA modulus (N) from JWKS", "kid", jwk.Kid, "error", err)
+
+			failedCount++
+
 			continue
 		}
 
 		// Decode E (exponent)
 		eBytes, err := base64.RawURLEncoding.DecodeString(jwk.E)
 		if err != nil {
+			slog.Warn("Failed to decode RSA exponent (E) from JWKS", "kid", jwk.Kid, "error", err)
+
+			failedCount++
+
+			continue
+		}
+
+		// Validate exponent size to prevent overflow
+		eBig := new(big.Int).SetBytes(eBytes)
+		if !eBig.IsInt64() {
+			slog.Warn("RSA exponent too large to fit in int64, skipping key", "kid", jwk.Kid)
+
+			failedCount++
+
+			continue
+		}
+
+		e64 := eBig.Int64()
+		// Check if exponent fits in int on this platform
+		maxInt := int64(^uint(0) >> 1)
+
+		if e64 <= 0 || e64 > maxInt {
+			slog.Warn("RSA exponent out of valid range for int, skipping key", "kid", jwk.Kid, "exponent", e64)
+
+			failedCount++
+
 			continue
 		}
 
 		// Create public key
 		pubKey := &rsa.PublicKey{
 			N: new(big.Int).SetBytes(nBytes),
-			E: int(new(big.Int).SetBytes(eBytes).Int64()),
+			E: int(e64),
 		}
 
 		newKeys[jwk.Kid] = pubKey
+	}
+
+	if len(newKeys) == 0 && len(jwks.Keys) > 0 {
+		return nil, fmt.Errorf("failed to parse any keys from JWKS (%d keys failed)", failedCount)
+	}
+
+	if failedCount > 0 {
+		slog.Warn("Some JWKS keys failed to parse", "failed", failedCount, "succeeded", len(newKeys))
 	}
 
 	// Update cache

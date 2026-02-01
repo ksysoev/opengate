@@ -4,6 +4,7 @@ package oidc
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -18,8 +19,8 @@ type Middleware struct {
 	config    Config
 }
 
-// NewMiddleware creates a new OIDC middleware instance.
-func NewMiddleware(config *Config) (*Middleware, error) {
+// NewMiddleware creates a new OIDC middleware instance with the provided HTTP client.
+func NewMiddleware(config *Config, httpClient *http.Client) (*Middleware, error) {
 	if config.Issuer == "" {
 		return nil, fmt.Errorf("issuer must be specified")
 	}
@@ -34,7 +35,7 @@ func NewMiddleware(config *Config) (*Middleware, error) {
 
 	return &Middleware{
 		config:    *config,
-		jwksCache: NewJWKSCache(config.JWKSURI, config.JWKSCacheTTL),
+		jwksCache: NewJWKSCache(config.JWKSURI, config.JWKSCacheTTL, httpClient),
 	}, nil
 }
 
@@ -76,27 +77,44 @@ func (m *Middleware) extractToken(req *request.Request) (string, error) {
 		return "", fmt.Errorf("invalid authorization header format")
 	}
 
-	return parts[1], nil
+	token := parts[1]
+	if token == "" {
+		return "", fmt.Errorf("token is empty")
+	}
+
+	// Validate token length to prevent DoS attacks with extremely large tokens
+	// JWT tokens are typically under 8KB; 16KB is a generous upper limit
+	const maxTokenLength = 16384
+	if len(token) > maxTokenLength {
+		return "", fmt.Errorf("token exceeds maximum length of %d bytes", maxTokenLength)
+	}
+
+	return token, nil
 }
 
 // validateToken parses and validates the JWT token.
 func (m *Middleware) validateToken(ctx context.Context, tokenString string) (jwt.MapClaims, error) {
-	// Parse token
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Verify signing method
-		if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
+	// Parse token with explicit claims and expiration requirement
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		jwt.MapClaims{},
+		func(token *jwt.Token) (interface{}, error) {
+			// Verify signing method
+			if _, ok := token.Method.(*jwt.SigningMethodRSA); !ok {
+				return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+			}
 
-		// Get kid from header
-		kid, ok := token.Header["kid"].(string)
-		if !ok {
-			return nil, fmt.Errorf("kid not found in token header")
-		}
+			// Get kid from header
+			kid, ok := token.Header["kid"].(string)
+			if !ok {
+				return nil, fmt.Errorf("kid not found in token header")
+			}
 
-		// Fetch public key from JWKS
-		return m.jwksCache.GetKey(ctx, kid)
-	})
+			// Fetch public key from JWKS
+			return m.jwksCache.GetKey(ctx, kid)
+		},
+		jwt.WithExpirationRequired(),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse token: %w", err)
 	}
@@ -151,8 +169,19 @@ func (m *Middleware) checkRequiredClaims(claims jwt.MapClaims) error {
 func (m *Middleware) mapClaimsToHeaders(req *request.Request, claims jwt.MapClaims) {
 	for _, mapping := range m.config.ClaimsToHeaders {
 		if value, ok := claims[mapping.Claim]; ok {
-			// Convert claim value to string
-			strValue := fmt.Sprintf("%v", value)
+			// Convert claim value to string based on type
+			var strValue string
+
+			switch v := value.(type) {
+			case string:
+				strValue = v
+			case float64, int, int64, bool:
+				strValue = fmt.Sprintf("%v", v)
+			default:
+				// Skip complex types (slices, maps, objects) - they're not suitable for headers
+				continue
+			}
+
 			req.Headers.Set(mapping.Header, strValue)
 		}
 	}

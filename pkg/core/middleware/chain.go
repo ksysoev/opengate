@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/ksysoev/opengate/pkg/core/policy"
 	"github.com/ksysoev/opengate/pkg/core/request"
@@ -14,6 +15,7 @@ type Chain struct {
 	registry        *Registry
 	policies        map[string]policy.Policy
 	middlewareCache map[string]Middleware
+	mu              sync.RWMutex
 }
 
 // NewChain creates a new middleware chain builder.
@@ -73,7 +75,20 @@ func (c *Chain) Build(policyNames []string, finalHandler HandlerFunc) HandlerFun
 
 // getOrCreateMiddleware retrieves a middleware from cache or creates it if not cached.
 func (c *Chain) getOrCreateMiddleware(policyName string) (Middleware, error) {
-	// Check cache first
+	// Check cache first with read lock
+	c.mu.RLock()
+	middleware, ok := c.middlewareCache[policyName]
+	c.mu.RUnlock()
+
+	if ok {
+		return middleware, nil
+	}
+
+	// Not in cache, acquire write lock to create
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double-check: another goroutine might have created it while we waited
 	if middleware, ok := c.middlewareCache[policyName]; ok {
 		return middleware, nil
 	}
@@ -108,6 +123,19 @@ func (c *Chain) ValidatePolicies(policyNames []string) error {
 
 		if !c.registry.HasFactory(pol.Type) {
 			return fmt.Errorf("no middleware factory registered for type %q (policy %q)", pol.Type, policyName)
+		}
+	}
+
+	return nil
+}
+
+// PreloadPolicies eagerly creates middleware instances for all specified policies.
+// This validates policy configurations at startup rather than on first request.
+// Returns an error if any policy fails to create its middleware.
+func (c *Chain) PreloadPolicies(policyNames []string) error {
+	for _, policyName := range policyNames {
+		if _, err := c.getOrCreateMiddleware(policyName); err != nil {
+			return fmt.Errorf("failed to preload policy %q: %w", policyName, err)
 		}
 	}
 

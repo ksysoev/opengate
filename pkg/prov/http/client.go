@@ -119,3 +119,9 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 	return resp, nil
 }
+
+// HTTPClient returns the underlying http.Client for use cases that need direct access.
+// This is useful for components like JWKS fetchers that need a standard http.Client.
+func (c *Client) HTTPClient() *http.Client {
+	return c.client
+}

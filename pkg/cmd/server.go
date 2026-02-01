@@ -59,8 +59,8 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	// Create middleware registry
 	registry := middleware.NewRegistry()
 
-	// Register middleware factories
-	if err := registry.Register(oidc.NewFactory()); err != nil {
+	// Register middleware factories with shared HTTP client
+	if err := registry.Register(oidc.NewFactory(httpClient.HTTPClient())); err != nil {
 		return fmt.Errorf("failed to register OIDC middleware factory: %w", err)
 	}
 
@@ -82,11 +82,11 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 
 	routes := svc.GetRoutes(ctx)
 
-	// Validate all policies referenced by routes
+	// Validate and preload all policies referenced by routes
 	for i := range routes {
 		if len(routes[i].Policies) > 0 {
-			if err := chain.ValidatePolicies(routes[i].Policies); err != nil {
-				return fmt.Errorf("policy validation failed for route %s %s: %w", routes[i].Method, routes[i].Path, err)
+			if err := chain.PreloadPolicies(routes[i].Policies); err != nil {
+				return fmt.Errorf("policy preload failed for route %s %s: %w", routes[i].Method, routes[i].Path, err)
 			}
 		}
 	}

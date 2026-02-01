@@ -243,13 +243,11 @@ func (r *Registry) HasFactory(middlewareType string) bool {
 	return exists
 }
 
-// resetRegistry resets the singleton for testing.
-// This is intentionally unexported - only accessible from tests in the same package.
+// ResetRegistryForTest resets the singleton registry for testing purposes.
+// This should only be called from tests to ensure a clean state between test runs.
 // WARNING: This function is not safe for concurrent use. Tests using it must ensure
 // no concurrent access to the registry occurs during reset.
-//
-//nolint:unused // Only used in tests
-func resetRegistry() {
+func ResetRegistryForTest() {
 	if instance != nil {
 		instance.mu.Lock()
 		defer instance.mu.Unlock()

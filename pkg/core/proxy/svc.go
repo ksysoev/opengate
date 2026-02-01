@@ -2,15 +2,16 @@
 package proxy
 
 import (
+	"context"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 
-	"github.com/ksysoev/opengate/pkg/core/router"
+	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/request"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 const (
@@ -45,56 +46,46 @@ func NewWithTimeout(timeout time.Duration) *Handler {
 	return h
 }
 
-// ServeHTTP implements http.Handler interface for proxying requests.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	route := router.GetRoute(r.Context())
-	if route == nil {
-		slog.ErrorContext(r.Context(), "No route found in context")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
+// Handle implements core.Handler interface for proxying requests.
+func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
+	// Validate route configuration
+	if rt.Handler.BaseURL == "" {
+		return nil, fmt.Errorf("%w: no backend URL configured", core.ErrInvalidRoute)
 	}
 
-	if route.Handler.BaseURL == "" {
-		slog.ErrorContext(r.Context(), "No backend URL configured for route",
-			"path", route.Path, "method", route.Method)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
-	}
-
-	if err := h.proxyRequest(w, r, route.Handler.BaseURL); err != nil {
-		slog.ErrorContext(r.Context(), "Failed to proxy request",
-			"error", err, "backend_url", route.Handler.BaseURL)
-		http.Error(w, "Bad Gateway", http.StatusBadGateway)
-
-		return
-	}
-}
-
-// proxyRequest forwards the request to the backend service.
-func (h *Handler) proxyRequest(w http.ResponseWriter, r *http.Request, baseURL string) error {
-	backendURL, err := h.buildBackendURL(baseURL, r.URL)
+	// Build backend URL
+	backendURL, err := h.buildBackendURL(rt.Handler.BaseURL, req.Path, req.QueryParams)
 	if err != nil {
-		return fmt.Errorf("failed to build backend URL: %w", err)
+		return nil, fmt.Errorf("failed to build backend URL: %w", err)
 	}
 
-	proxyReq, err := h.createProxyRequest(r, backendURL)
+	// Create backend request
+	backendReq, err := h.createProxyRequest(ctx, req, backendURL)
 	if err != nil {
-		return fmt.Errorf("failed to create proxy request: %w", err)
+		return nil, fmt.Errorf("failed to create proxy request: %w", err)
 	}
 
-	resp, err := h.client.Do(proxyReq)
+	// Execute request
+	//nolint:bodyclose // Response body is passed to caller who is responsible for closing it
+	resp, err := h.client.Do(backendReq)
 	if err != nil {
-		return fmt.Errorf("failed to send request to backend: %w", err)
+		return nil, &core.BackendError{
+			Err:        fmt.Errorf("%w: %v", core.ErrBackendFailed, err),
+			BackendURL: backendURL,
+		}
 	}
-	defer resp.Body.Close()
 
-	return h.copyResponse(w, resp)
+	// Convert to core.Response
+	// NOTE: The caller is responsible for closing resp.Body
+	return &request.Response{
+		StatusCode: resp.StatusCode,
+		Headers:    resp.Header,
+		Body:       resp.Body,
+	}, nil
 }
 
 // buildBackendURL constructs the full backend URL.
-func (h *Handler) buildBackendURL(baseURL string, reqURL *url.URL) (string, error) {
+func (h *Handler) buildBackendURL(baseURL, reqPath string, queryParams url.Values) (string, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
 		return "", fmt.Errorf("invalid base URL: %w", err)
@@ -102,24 +93,24 @@ func (h *Handler) buildBackendURL(baseURL string, reqURL *url.URL) (string, erro
 
 	// Combine base URL with request path and query
 	backendURL := *base
-	backendURL.Path = strings.TrimSuffix(base.Path, "/") + reqURL.Path
-	backendURL.RawQuery = reqURL.RawQuery
+	backendURL.Path = strings.TrimSuffix(base.Path, "/") + reqPath
+	backendURL.RawQuery = queryParams.Encode()
 
 	return backendURL.String(), nil
 }
 
 // createProxyRequest creates a new HTTP request for the backend.
-func (h *Handler) createProxyRequest(r *http.Request, backendURL string) (*http.Request, error) {
-	proxyReq, err := http.NewRequestWithContext(r.Context(), r.Method, backendURL, r.Body)
+func (h *Handler) createProxyRequest(ctx context.Context, req *request.Request, backendURL string) (*http.Request, error) {
+	proxyReq, err := http.NewRequestWithContext(ctx, req.Method, backendURL, req.Body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
 	// Copy headers
-	h.copyHeaders(proxyReq.Header, r.Header)
+	h.copyHeaders(proxyReq.Header, req.Headers)
 
 	// Set X-Forwarded headers
-	h.setForwardedHeaders(proxyReq, r)
+	h.setForwardedHeaders(proxyReq, req)
 
 	return proxyReq, nil
 }
@@ -161,25 +152,25 @@ func (h *Handler) isHopByHopHeader(header string) bool {
 }
 
 // setForwardedHeaders sets X-Forwarded-* headers.
-func (h *Handler) setForwardedHeaders(proxyReq, originalReq *http.Request) {
+func (h *Handler) setForwardedHeaders(proxyReq *http.Request, req *request.Request) {
 	// Use RemoteAddr as the source of truth to prevent IP spoofing
-	clientIP := h.extractClientIP(originalReq.RemoteAddr)
+	clientIP := h.extractClientIP(req.RemoteAddr)
 
 	// Append to existing X-Forwarded-For if present
-	if xff := originalReq.Header.Get("X-Forwarded-For"); xff != "" {
+	if xff := req.Headers.Get("X-Forwarded-For"); xff != "" {
 		proxyReq.Header.Set("X-Forwarded-For", xff+", "+clientIP)
 	} else {
 		proxyReq.Header.Set("X-Forwarded-For", clientIP)
 	}
 
-	if originalReq.TLS != nil {
+	if req.TLS {
 		proxyReq.Header.Set("X-Forwarded-Proto", "https")
 	} else {
 		proxyReq.Header.Set("X-Forwarded-Proto", "http")
 	}
 
-	if originalReq.Host != "" {
-		proxyReq.Header.Set("X-Forwarded-Host", originalReq.Host)
+	if req.Host != "" {
+		proxyReq.Header.Set("X-Forwarded-Host", req.Host)
 	}
 }
 
@@ -191,24 +182,4 @@ func (h *Handler) extractClientIP(remoteAddr string) string {
 	}
 
 	return remoteAddr
-}
-
-// copyResponse copies the backend response to the client.
-func (h *Handler) copyResponse(w http.ResponseWriter, resp *http.Response) error {
-	// Copy response headers
-	for key, values := range resp.Header {
-		for _, value := range values {
-			w.Header().Add(key, value)
-		}
-	}
-
-	// Set status code
-	w.WriteHeader(resp.StatusCode)
-
-	// Copy response body
-	if _, err := io.Copy(w, resp.Body); err != nil {
-		return fmt.Errorf("failed to copy response body: %w", err)
-	}
-
-	return nil
 }

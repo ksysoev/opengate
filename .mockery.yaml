@@ -14,4 +14,5 @@ packages:
   github.com/ksysoev/opengate/pkg/core:
     interfaces:
       specParser:
+      Handler:
  

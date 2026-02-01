@@ -2,16 +2,19 @@ package redirect
 
 import (
 	"context"
+	"errors"
 	"net/http"
-	"net/http/httptest"
+	"net/url"
 	"testing"
 
+	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/request"
 	"github.com/ksysoev/opengate/pkg/core/route"
-	"github.com/ksysoev/opengate/pkg/core/router"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func TestHandler_ServeHTTP(t *testing.T) {
+func TestHandler_Handle(t *testing.T) {
 	tests := []struct {
 		route          *route.Route
 		name           string
@@ -47,6 +50,21 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 			expectedStatus: http.StatusFound,
 			expectedLoc:    "https://example.com/temp",
+			wantErr:        false,
+		},
+		{
+			name: "Successful 303 redirect",
+			route: &route.Route{
+				Path:   "/see-other",
+				Method: "POST",
+				Handler: route.Handler{
+					Type:       "redirect",
+					Location:   "https://example.com/result",
+					StatusCode: http.StatusSeeOther,
+				},
+			},
+			expectedStatus: http.StatusSeeOther,
+			expectedLoc:    "https://example.com/result",
 			wantErr:        false,
 		},
 		{
@@ -90,8 +108,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					StatusCode: http.StatusMovedPermanently,
 				},
 			},
-			expectedStatus: http.StatusInternalServerError,
-			wantErr:        true,
+			wantErr: true,
 		},
 		{
 			name: "Missing status code",
@@ -103,8 +120,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					Location: "https://example.com",
 				},
 			},
-			expectedStatus: http.StatusInternalServerError,
-			wantErr:        true,
+			wantErr: true,
 		},
 		{
 			name: "Invalid status code",
@@ -117,8 +133,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 					StatusCode: http.StatusOK,
 				},
 			},
-			expectedStatus: http.StatusInternalServerError,
-			wantErr:        true,
+			wantErr: true,
 		},
 	}
 
@@ -126,36 +141,127 @@ func TestHandler_ServeHTTP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			handler := New()
 
-			req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
-			w := httptest.NewRecorder()
-
-			ctx := context.Background()
-			if tt.route != nil {
-				ctx = router.WithRoute(ctx, tt.route)
+			coreReq := &request.Request{
+				Method:      http.MethodGet,
+				Path:        "/test",
+				PathParams:  make(map[string]string),
+				QueryParams: url.Values{},
+				Headers:     http.Header{},
+				Body:        http.NoBody,
+				RemoteAddr:  "192.168.1.1:12345",
+				TLS:         false,
+				Host:        "example.com",
 			}
 
-			req = req.WithContext(ctx)
+			resp, err := handler.Handle(context.Background(), coreReq, tt.route)
 
-			handler.ServeHTTP(w, req)
+			if tt.wantErr {
+				assert.Error(t, err)
+				assert.Nil(t, resp)
 
-			assert.Equal(t, tt.expectedStatus, w.Code)
-
-			if !tt.wantErr {
-				assert.Equal(t, tt.expectedLoc, w.Header().Get("Location"))
+				// Verify error is RedirectError
+				var redirectErr *core.RedirectError
+				assert.True(t, errors.As(err, &redirectErr))
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, resp)
+				assert.Equal(t, tt.expectedStatus, resp.StatusCode)
+				assert.Equal(t, tt.expectedLoc, resp.Headers.Get("Location"))
+				assert.Equal(t, http.NoBody, resp.Body)
 			}
 		})
 	}
 }
 
-func TestHandler_ServeHTTP_NoRouteInContext(t *testing.T) {
+func TestHandler_Handle_ErrorTypes(t *testing.T) {
 	handler := New()
 
-	req := httptest.NewRequest(http.MethodGet, "/test", http.NoBody)
-	w := httptest.NewRecorder()
+	tests := []struct {
+		route      *route.Route
+		checkError func(*testing.T, error)
+		name       string
+	}{
+		{
+			name: "Missing location error",
+			route: &route.Route{
+				Path:   "/test",
+				Method: "GET",
+				Handler: route.Handler{
+					Type:       "redirect",
+					Location:   "",
+					StatusCode: http.StatusMovedPermanently,
+				},
+			},
+			checkError: func(t *testing.T, err error) {
+				t.Helper()
 
-	handler.ServeHTTP(w, req)
+				var redirectErr *core.RedirectError
+				require.True(t, errors.As(err, &redirectErr))
+				assert.Contains(t, redirectErr.Reason, "no redirect location")
+			},
+		},
+		{
+			name: "Missing status code error",
+			route: &route.Route{
+				Path:   "/test",
+				Method: "GET",
+				Handler: route.Handler{
+					Type:       "redirect",
+					Location:   "https://example.com",
+					StatusCode: 0,
+				},
+			},
+			checkError: func(t *testing.T, err error) {
+				t.Helper()
 
-	assert.Equal(t, http.StatusInternalServerError, w.Code)
+				var redirectErr *core.RedirectError
+				require.True(t, errors.As(err, &redirectErr))
+				assert.Contains(t, redirectErr.Reason, "no redirect status code")
+			},
+		},
+		{
+			name: "Invalid status code error",
+			route: &route.Route{
+				Path:   "/test",
+				Method: "GET",
+				Handler: route.Handler{
+					Type:       "redirect",
+					Location:   "https://example.com",
+					StatusCode: http.StatusOK,
+				},
+			},
+			checkError: func(t *testing.T, err error) {
+				t.Helper()
+
+				var redirectErr *core.RedirectError
+				require.True(t, errors.As(err, &redirectErr))
+				assert.Contains(t, redirectErr.Reason, "invalid redirect status code")
+				assert.Equal(t, http.StatusOK, redirectErr.StatusCode)
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			coreReq := &request.Request{
+				Method:      http.MethodGet,
+				Path:        "/test",
+				PathParams:  make(map[string]string),
+				QueryParams: url.Values{},
+				Headers:     http.Header{},
+				Body:        http.NoBody,
+				RemoteAddr:  "192.168.1.1:12345",
+				TLS:         false,
+				Host:        "example.com",
+			}
+
+			resp, err := handler.Handle(context.Background(), coreReq, tt.route)
+
+			require.Error(t, err)
+			assert.Nil(t, resp)
+			tt.checkError(t, err)
+		})
+	}
 }
 
 func TestIsValidRedirectStatus(t *testing.T) {
@@ -212,4 +318,9 @@ func TestIsValidRedirectStatus(t *testing.T) {
 			assert.Equal(t, tt.want, result)
 		})
 	}
+}
+
+func TestNew(t *testing.T) {
+	handler := New()
+	assert.NotNil(t, handler)
 }

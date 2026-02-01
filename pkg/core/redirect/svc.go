@@ -2,10 +2,13 @@
 package redirect
 
 import (
-	"log/slog"
+	"context"
+	"fmt"
 	"net/http"
 
-	"github.com/ksysoev/opengate/pkg/core/router"
+	"github.com/ksysoev/opengate/pkg/core"
+	"github.com/ksysoev/opengate/pkg/core/request"
+	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 // Handler handles HTTP redirects.
@@ -16,46 +19,37 @@ func New() *Handler {
 	return &Handler{}
 }
 
-// ServeHTTP implements http.Handler interface for redirecting requests.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	route := router.GetRoute(r.Context())
-	if route == nil {
-		slog.ErrorContext(r.Context(), "No route found in context")
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
+// Handle implements core.Handler interface for redirecting requests.
+func (h *Handler) Handle(ctx context.Context, req *request.Request, rt *route.Route) (*request.Response, error) {
+	// Validate configuration
+	if rt.Handler.Location == "" {
+		return nil, &core.RedirectError{
+			Reason: "no redirect location configured",
+		}
 	}
 
-	if route.Handler.Location == "" {
-		slog.ErrorContext(r.Context(), "No redirect location configured for route",
-			"path", route.Path, "method", route.Method)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
+	if rt.Handler.StatusCode == 0 {
+		return nil, &core.RedirectError{
+			Reason: "no redirect status code configured",
+		}
 	}
 
-	if route.Handler.StatusCode == 0 {
-		slog.ErrorContext(r.Context(), "No redirect status code configured for route",
-			"path", route.Path, "method", route.Method)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
-
-		return
+	if !isValidRedirectStatus(rt.Handler.StatusCode) {
+		return nil, &core.RedirectError{
+			Reason:     fmt.Sprintf("invalid redirect status code: %d", rt.Handler.StatusCode),
+			StatusCode: rt.Handler.StatusCode,
+		}
 	}
 
-	// Validate status code is a valid redirect code
-	if !isValidRedirectStatus(route.Handler.StatusCode) {
-		slog.ErrorContext(r.Context(), "Invalid redirect status code",
-			"path", route.Path, "method", route.Method, "status_code", route.Handler.StatusCode)
-		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	// Build redirect response
+	headers := make(http.Header)
+	headers.Set("Location", rt.Handler.Location)
 
-		return
-	}
-
-	slog.DebugContext(r.Context(), "Redirecting request",
-		"location", route.Handler.Location,
-		"status_code", route.Handler.StatusCode)
-
-	http.Redirect(w, r, route.Handler.Location, route.Handler.StatusCode)
+	return &request.Response{
+		StatusCode: rt.Handler.StatusCode,
+		Headers:    headers,
+		Body:       http.NoBody,
+	}, nil
 }
 
 // isValidRedirectStatus checks if the status code is a valid HTTP redirect status.

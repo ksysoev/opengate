@@ -2,12 +2,9 @@ package router
 
 import (
 	"context"
-
-	"github.com/ksysoev/opengate/pkg/core/route"
 )
 
 type keyPathParam struct{}
-type keyRoute struct{}
 
 // withPathParam adds a path parameter to the context.
 // Creates a new map to avoid mutating existing context state.
@@ -56,24 +53,4 @@ func GetPathParams(ctx context.Context) map[string]string {
 func GetPathParam(ctx context.Context, key string) string {
 	params := GetPathParams(ctx)
 	return params[key]
-}
-
-// withRoute adds the matched route to the context.
-func withRoute(ctx context.Context, rt *route.Route) context.Context {
-	return context.WithValue(ctx, keyRoute{}, rt)
-}
-
-// WithRoute adds the matched route to the context (exported).
-func WithRoute(ctx context.Context, rt *route.Route) context.Context {
-	return withRoute(ctx, rt)
-}
-
-// GetRoute retrieves the matched route from the context.
-func GetRoute(ctx context.Context) *route.Route {
-	rt, ok := ctx.Value(keyRoute{}).(*route.Route)
-	if !ok {
-		return nil
-	}
-
-	return rt
 }

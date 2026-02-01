@@ -78,6 +78,10 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	proxyHandler := proxy.New()
 	redirectHandler := redirect.New()
 
+	// Wrap in API adapters
+	proxyAdapter := api.NewHandlerAdapter(proxyHandler)
+	redirectAdapter := api.NewHandlerAdapter(redirectHandler)
+
 	// Build middleware chain
 	withReqID := middleware.NewReqID()
 
@@ -93,22 +97,14 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 			return
 		}
 
-		// Store route and params in context
-		ctx := r.Context()
-		for key, value := range params {
-			ctx = router.WithPathParam(ctx, key, value)
-		}
-
-		ctx = router.WithRoute(ctx, route)
-
-		// Route to appropriate handler based on type
+		// Dispatch to appropriate adapter with explicit parameters
 		switch route.Handler.Type {
 		case "forward":
-			proxyHandler.ServeHTTP(w, r.WithContext(ctx))
+			proxyAdapter.ServeHTTP(w, r, route, params)
 		case "redirect":
-			redirectHandler.ServeHTTP(w, r.WithContext(ctx))
+			redirectAdapter.ServeHTTP(w, r, route, params)
 		default:
-			slog.ErrorContext(ctx, "Unknown handler type",
+			slog.ErrorContext(r.Context(), "Unknown handler type",
 				"type", route.Handler.Type,
 				"path", route.Path,
 				"method", route.Method)

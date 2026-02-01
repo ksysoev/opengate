@@ -12,6 +12,19 @@ import (
 	"github.com/ksysoev/opengate/pkg/core/request"
 )
 
+// hopByHopHeaders is a map of HTTP headers that should not be forwarded through a proxy.
+// These headers are connection-specific and apply only to the immediate connection.
+var hopByHopHeaders = map[string]struct{}{
+	"connection":          {},
+	"keep-alive":          {},
+	"proxy-authenticate":  {},
+	"proxy-authorization": {},
+	"te":                  {},
+	"trailers":            {},
+	"transfer-encoding":   {},
+	"upgrade":             {},
+}
+
 // SendRequest converts a core request to HTTP, executes it, and converts the response back.
 // All HTTP-specific logic (header handling, X-Forwarded-* headers, etc.) is encapsulated here.
 //
@@ -82,25 +95,10 @@ func (c *Client) copyHeaders(dst, src http.Header) {
 
 // isHopByHopHeader checks if a header is a hop-by-hop header that should not be forwarded.
 // These headers are connection-specific and should not be proxied.
+// Uses O(1) map lookup for performance.
 func (c *Client) isHopByHopHeader(header string) bool {
-	hopByHopHeaders := []string{
-		"Connection",
-		"Keep-Alive",
-		"Proxy-Authenticate",
-		"Proxy-Authorization",
-		"Te",
-		"Trailers",
-		"Transfer-Encoding",
-		"Upgrade",
-	}
-
-	for _, hopHeader := range hopByHopHeaders {
-		if strings.EqualFold(hopHeader, header) {
-			return true
-		}
-	}
-
-	return false
+	_, ok := hopByHopHeaders[strings.ToLower(header)]
+	return ok
 }
 
 // setForwardedHeaders sets X-Forwarded-* headers to preserve client information.
@@ -130,13 +128,16 @@ func (c *Client) setForwardedHeaders(httpReq *http.Request, req *request.Request
 }
 
 // extractClientIP extracts the IP address from RemoteAddr.
-// RemoteAddr is in format "IP:port", so we need to strip the port.
+// Properly handles both IPv4 (192.168.1.1:8080) and IPv6 ([2001:db8::1]:8080) formats.
 func (c *Client) extractClientIP(remoteAddr string) string {
-	if idx := strings.LastIndex(remoteAddr, ":"); idx > 0 {
-		return remoteAddr[:idx]
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		// If SplitHostPort fails, return the original address
+		// This handles cases where there's no port
+		return remoteAddr
 	}
 
-	return remoteAddr
+	return host
 }
 
 // isTimeoutError checks if an error is timeout-related.

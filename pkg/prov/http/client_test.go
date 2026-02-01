@@ -74,7 +74,8 @@ func TestNew(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			client := New(tt.cfg)
+			client, err := New(tt.cfg)
+			require.NoError(t, err)
 			assert.NotNil(t, client)
 			tt.expectedFields(t, client)
 		})
@@ -92,7 +93,8 @@ func TestClient_Do_Success(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/test-path", http.NoBody)
 	require.NoError(t, err)
@@ -120,9 +122,10 @@ func TestClient_Do_Timeout(t *testing.T) {
 	defer server.Close()
 
 	// Create client with short timeout
-	client := New(Config{
+	client, err := New(Config{
 		Timeout: 50 * time.Millisecond,
 	})
+	require.NoError(t, err)
 
 	req, err := http.NewRequest(http.MethodGet, server.URL, http.NoBody)
 	require.NoError(t, err)
@@ -153,7 +156,8 @@ func TestClient_Do_RedirectNotFollowed(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	req, err := http.NewRequest(http.MethodGet, server.URL+"/original", http.NoBody)
 	require.NoError(t, err)
@@ -170,7 +174,8 @@ func TestClient_Do_RedirectNotFollowed(t *testing.T) {
 }
 
 func TestClient_Do_InvalidURL(t *testing.T) {
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	// Create a request with an invalid URL that will fail during execution
 	req, err := http.NewRequest(http.MethodGet, "http://invalid-host-that-does-not-exist-12345.com", http.NoBody)
@@ -183,4 +188,50 @@ func TestClient_Do_InvalidURL(t *testing.T) {
 	}
 
 	assert.Error(t, err)
+}
+
+func TestNew_ValidationErrors(t *testing.T) {
+	tests := []struct {
+		name    string
+		wantErr string
+		cfg     Config
+	}{
+		{
+			name: "Negative timeout",
+			cfg: Config{
+				Timeout: -1 * time.Second,
+			},
+			wantErr: "timeout must be non-negative",
+		},
+		{
+			name: "Negative MaxIdleConns",
+			cfg: Config{
+				MaxIdleConns: -1,
+			},
+			wantErr: "max_idle_conns must be non-negative",
+		},
+		{
+			name: "Negative MaxConnsPerHost",
+			cfg: Config{
+				MaxConnsPerHost: -5,
+			},
+			wantErr: "max_conns_per_host must be non-negative",
+		},
+		{
+			name: "Negative IdleConnTimeout",
+			cfg: Config{
+				IdleConnTimeout: -10 * time.Second,
+			},
+			wantErr: "idle_conn_timeout must be non-negative",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client, err := New(tt.cfg)
+			assert.Error(t, err)
+			assert.Nil(t, client)
+			assert.Contains(t, err.Error(), tt.wantErr)
+		})
+	}
 }

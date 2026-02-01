@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"time"
+
+	"github.com/ksysoev/opengate/pkg/core"
 )
 
 const (
@@ -31,9 +33,30 @@ type Client struct {
 	client *http.Client
 }
 
+// Compile-time check to ensure Client implements core.HTTPProvider interface.
+var _ core.HTTPProvider = (*Client)(nil)
+
 // New creates a new HTTP client with the provided configuration.
 // It applies sensible defaults for production use if values are not specified.
-func New(cfg Config) *Client {
+// Returns error if configuration contains invalid values.
+func New(cfg Config) (*Client, error) {
+	// Validate configuration
+	if cfg.Timeout < 0 {
+		return nil, fmt.Errorf("timeout must be non-negative, got %v", cfg.Timeout)
+	}
+
+	if cfg.MaxIdleConns < 0 {
+		return nil, fmt.Errorf("max_idle_conns must be non-negative, got %d", cfg.MaxIdleConns)
+	}
+
+	if cfg.MaxConnsPerHost < 0 {
+		return nil, fmt.Errorf("max_conns_per_host must be non-negative, got %d", cfg.MaxConnsPerHost)
+	}
+
+	if cfg.IdleConnTimeout < 0 {
+		return nil, fmt.Errorf("idle_conn_timeout must be non-negative, got %v", cfg.IdleConnTimeout)
+	}
+
 	// Apply defaults
 	if cfg.Timeout == 0 {
 		cfg.Timeout = defaultTimeout
@@ -83,7 +106,7 @@ func New(cfg Config) *Client {
 				return http.ErrUseLastResponse
 			},
 		},
-	}
+	}, nil
 }
 
 // Do executes an HTTP request and returns the response.

@@ -30,7 +30,10 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 	}
 
 	// Create HTTP provider
-	httpClient := httpprov.New(cfg.HTTP)
+	httpClient, err := httpprov.New(cfg.HTTP)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP provider: %w", err)
+	}
 
 	// Create runtime with providers
 	runtime, err := core.NewRuntime(httpClient)

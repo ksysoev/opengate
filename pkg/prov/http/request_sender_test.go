@@ -45,7 +45,8 @@ func TestClient_SendRequest_Success(t *testing.T) {
 	defer server.Close()
 
 	// Create client
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	// Parse server URL
 	serverURL, err := url.Parse(server.URL + "/test-path?param1=value1")
@@ -83,7 +84,8 @@ func TestClient_SendRequest_Success(t *testing.T) {
 }
 
 func TestClient_SendRequest_NilRequest(t *testing.T) {
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	resp, err := client.SendRequest(context.Background(), nil)
 
@@ -93,7 +95,8 @@ func TestClient_SendRequest_NilRequest(t *testing.T) {
 }
 
 func TestClient_SendRequest_NilURL(t *testing.T) {
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	coreReq := &request.Request{
 		Method: "GET",
@@ -116,7 +119,8 @@ func TestClient_SendRequest_Timeout(t *testing.T) {
 	defer server.Close()
 
 	// Create client with short timeout
-	client := New(Config{Timeout: 50 * time.Millisecond})
+	client, err := New(Config{Timeout: 50 * time.Millisecond})
+	require.NoError(t, err)
 
 	serverURL, err := url.Parse(server.URL + "/test")
 	require.NoError(t, err)
@@ -150,7 +154,8 @@ func TestClient_SendRequest_ContextCancelled(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	serverURL, err := url.Parse(server.URL + "/test")
 	require.NoError(t, err)
@@ -181,7 +186,8 @@ func TestClient_SendRequest_ContextCancelled(t *testing.T) {
 }
 
 func TestClient_SendRequest_InvalidURL(t *testing.T) {
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	// Create invalid URL - this will fail during http.NewRequest
 	invalidURL := &url.URL{
@@ -217,7 +223,8 @@ func TestClient_SendRequest_XForwardedForAppends(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	serverURL, err := url.Parse(server.URL + "/test")
 	require.NoError(t, err)
@@ -254,7 +261,8 @@ func TestClient_SendRequest_HTTPProtocol(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{Timeout: 5 * time.Second})
+	client, err := New(Config{Timeout: 5 * time.Second})
+	require.NoError(t, err)
 
 	serverURL, err := url.Parse(server.URL + "/test")
 	require.NoError(t, err)
@@ -280,7 +288,8 @@ func TestClient_SendRequest_HTTPProtocol(t *testing.T) {
 }
 
 func TestClient_CopyHeaders_FiltersHopByHop(t *testing.T) {
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	src := http.Header{
 		"Content-Type":        []string{"application/json"},
@@ -314,7 +323,8 @@ func TestClient_CopyHeaders_FiltersHopByHop(t *testing.T) {
 }
 
 func TestClient_ExtractClientIP(t *testing.T) {
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	tests := []struct {
 		name       string
@@ -329,7 +339,7 @@ func TestClient_ExtractClientIP(t *testing.T) {
 		{
 			name:       "IPv6 with port",
 			remoteAddr: "[2001:db8::1]:8080",
-			expectedIP: "[2001:db8::1]",
+			expectedIP: "2001:db8::1",
 		},
 		{
 			name:       "IP without port",
@@ -347,7 +357,8 @@ func TestClient_ExtractClientIP(t *testing.T) {
 }
 
 func TestClient_IsHopByHopHeader(t *testing.T) {
-	client := New(Config{})
+	client, err := New(Config{})
+	require.NoError(t, err)
 
 	hopByHopHeaders := []string{
 		"Connection",

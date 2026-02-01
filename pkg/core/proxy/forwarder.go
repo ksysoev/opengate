@@ -51,7 +51,7 @@ func (f *Forwarder) Handle(ctx context.Context, req *request.Request, rt *route.
 }
 
 // buildBackendURL constructs the complete backend URL by combining base URL, path, and query parameters.
-// This ensures proper URL construction with correct path joining and query encoding.
+// Query parameters from both the base URL and request are merged, with request parameters taking precedence.
 func (f *Forwarder) buildBackendURL(baseURL, reqPath string, queryParams url.Values) (*url.URL, error) {
 	base, err := url.Parse(baseURL)
 	if err != nil {
@@ -62,10 +62,16 @@ func (f *Forwarder) buildBackendURL(baseURL, reqPath string, queryParams url.Val
 	// Trim trailing slash from base to avoid double slashes
 	combinedPath := strings.TrimSuffix(base.Path, "/") + reqPath
 
-	// Create new URL with combined path and query
+	// Merge query parameters: start with base URL params, then add/override with request params
+	mergedQuery := base.Query()
+	for key, values := range queryParams {
+		mergedQuery[key] = values
+	}
+
+	// Create new URL with combined path and merged query
 	backendURL := *base
 	backendURL.Path = combinedPath
-	backendURL.RawQuery = queryParams.Encode()
+	backendURL.RawQuery = mergedQuery.Encode()
 
 	return &backendURL, nil
 }

@@ -9,6 +9,7 @@ import (
 	"github.com/ksysoev/opengate/pkg/core"
 	"github.com/ksysoev/opengate/pkg/core/proxy"
 	"github.com/ksysoev/opengate/pkg/core/redirect"
+	httpprov "github.com/ksysoev/opengate/pkg/prov/http"
 	"github.com/ksysoev/opengate/pkg/spec"
 )
 
@@ -28,12 +29,29 @@ func RunCommand(ctx context.Context, flags *cmdFlags) error {
 		return fmt.Errorf("gateway spec path must be specified")
 	}
 
+	// Create HTTP provider
+	httpClient, err := httpprov.New(cfg.HTTP)
+	if err != nil {
+		return fmt.Errorf("failed to create HTTP provider: %w", err)
+	}
+
+	// Create runtime with providers
+	runtime, err := core.NewRuntime(httpClient)
+	if err != nil {
+		return fmt.Errorf("failed to create runtime: %w", err)
+	}
+
 	// Create core service
 	parser := spec.NewParser()
 	svc := core.New(parser)
 
-	// Register handlers with core service
-	svc.RegisterHandler("forward", proxy.New())
+	// Register handlers with runtime
+	forwarder, err := proxy.New(runtime)
+	if err != nil {
+		return fmt.Errorf("failed to create forwarder: %w", err)
+	}
+
+	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
 
 	// Load OpenAPI specification

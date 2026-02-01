@@ -39,8 +39,14 @@ func TestNew_ValidConfig(t *testing.T) {
 			},
 		},
 	}
+
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
+
 	svc := core.New(parser)
-	svc.RegisterHandler("forward", proxy.New())
+	forwarder, err := proxy.New(mockRuntime)
+	require.NoError(t, err)
+	svc.RegisterHandler("forward", forwarder)
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 
 	api, err := New(cfg, svc)
@@ -64,11 +70,17 @@ func TestNew_InvalidConfig(t *testing.T) {
 			},
 		},
 	}
+
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
+
 	svc := core.New(parser)
-	svc.RegisterHandler("forward", proxy.New())
+	forwarder, err := proxy.New(mockRuntime)
+	require.NoError(t, err)
+	svc.RegisterHandler("forward", forwarder)
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 
-	_, err := New(cfg, svc)
+	_, err = New(cfg, svc)
 
 	assert.Error(t, err)
 }
@@ -88,8 +100,14 @@ func TestAPI_Run_StartAndShutdown(t *testing.T) {
 			},
 		},
 	}
+
+	// Create runtime with mock
+	mockRuntime := core.NewMockRuntime(t)
+
 	svc := core.New(parser)
-	svc.RegisterHandler("forward", proxy.New())
+	forwarder, err := proxy.New(mockRuntime)
+	require.NoError(t, err)
+	svc.RegisterHandler("forward", forwarder)
 	svc.RegisterHandler("redirect", redirect.New())
 	require.NoError(t, svc.LoadSpec(context.Background(), "test.yaml"))
 

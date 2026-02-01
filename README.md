@@ -12,6 +12,7 @@ OpenGate is a production-ready API gateway that uses OpenAPI specifications for 
 - **OpenAPI-driven routing** - Define routes using standard OpenAPI 3.x specifications
 - **Dynamic request forwarding** - Automatically proxy requests to backend services based on OpenAPI configuration
 - **Path parameter extraction** - Full support for path parameters like `/users/{id}`
+- **Configurable HTTP client** - Connection pooling, timeouts, and keep-alive settings
 - **Request ID tracking** - Built-in middleware for request correlation
 - **Structured logging** - Using Go's standard `log/slog` package
 - **Clean architecture** - Dependency injection, interface-driven design, comprehensive testing
@@ -45,6 +46,13 @@ api:
 
 gateway:
   spec_path: gateway.json
+
+http:
+  timeout: 30s
+  max_idle_conns: 100
+  max_conns_per_host: 10
+  idle_conn_timeout: 90s
+  disable_keep_alives: false
 ```
 
 Create an OpenAPI specification file `gateway.json`:
@@ -160,6 +168,39 @@ OpenGate fully supports OpenAPI path parameters:
 
 A request to `/users/123/posts/456` will be proxied to `http://backend:3000/users/123/posts/456`.
 
+## Request Forwarding
+
+OpenGate preserves and augments HTTP headers when forwarding requests to backend services.
+
+### Headers Forwarded
+
+- All standard request headers (Content-Type, Authorization, etc.)
+- Custom application headers
+- Query parameters
+
+### Headers Added
+
+OpenGate automatically adds the following headers to backend requests:
+
+- **X-Forwarded-For** - Client IP address (appends to existing values)
+- **X-Forwarded-Host** - Original Host header from the client request
+- **X-Forwarded-Proto** - Protocol used (http or https)
+
+### Headers Filtered
+
+The following hop-by-hop headers are NOT forwarded to backends:
+
+- Connection
+- Keep-Alive
+- Proxy-Authenticate
+- Proxy-Authorization
+- TE
+- Trailers
+- Transfer-Encoding
+- Upgrade
+
+This ensures proper proxy behavior and prevents connection-specific headers from being passed through.
+
 ## Architecture
 
 OpenGate follows clean architecture principles with clear separation of concerns:
@@ -168,9 +209,12 @@ OpenGate follows clean architecture principles with clear separation of concerns
 cmd/opengate/          - Entry point
 pkg/
   ├── api/             - HTTP server layer
-  ├── core/            - Business logic
+  ├── core/            - Business logic (protocol-agnostic)
   │   ├── router/      - Dynamic routing engine
-  │   └── proxy/       - HTTP request forwarding
+  │   ├── proxy/       - Request forwarding logic
+  │   └── redirect/    - Redirect handler
+  ├── prov/            - External service providers
+  │   └── http/        - HTTP client provider
   ├── spec/            - OpenAPI specification parsing
   └── cmd/             - CLI and configuration
 ```
@@ -180,7 +224,16 @@ pkg/
 - **Spec Parser** - Parses OpenAPI 3.x JSON specifications
 - **Router** - Matches incoming requests to routes with regex-based path matching
 - **Proxy Handler** - Forwards requests to backend services with proper headers
+- **HTTP Provider** - Configurable HTTP client with connection pooling
+- **Runtime** - Dependency container for shared providers
 - **Middleware** - Request ID tracking, logging, and more
+
+### Clean Architecture Principles
+
+- **Dependency Injection** - No global state, all dependencies injected via constructors
+- **Interface-Driven Design** - Interfaces defined by consumers (Dependency Inversion Principle)
+- **Protocol Isolation** - Core business logic is protocol-agnostic
+- **Testability** - Easy to mock dependencies for unit testing
 
 ## Development
 
@@ -212,13 +265,60 @@ make lint && make test
 
 ## Configuration Reference
 
+### API Configuration
+
+```yaml
+api:
+  listen: :8080  # Address to listen on
+```
+
+### Gateway Configuration
+
+```yaml
+gateway:
+  spec_path: gateway.json  # Path to OpenAPI specification file
+```
+
+### HTTP Client Configuration
+
+The HTTP client provider supports the following configuration options for backend requests:
+
+```yaml
+http:
+  timeout: 30s                    # Request timeout (default: 30s)
+  max_idle_conns: 100             # Max idle connections across all hosts (default: 100)
+  max_conns_per_host: 10          # Max connections per host (default: 10)
+  idle_conn_timeout: 90s          # Idle connection timeout (default: 90s)
+  disable_keep_alives: false      # Disable HTTP keep-alives (default: false)
+  insecure_skip_verify: false     # Skip TLS certificate verification (default: false, for dev/test only)
+```
+
+**Production Recommendations:**
+- Keep `disable_keep_alives: false` for better performance
+- Adjust `max_idle_conns` and `max_conns_per_host` based on your backend capacity
+- Set `timeout` according to your slowest backend service SLA
+- Never use `insecure_skip_verify: true` in production
+
 ### Environment Variables
 
 Configuration can be overridden with environment variables:
 
 ```sh
+# API configuration
 export API_LISTEN=:9090
+
+# Gateway configuration
 export GATEWAY_SPEC_PATH=/path/to/spec.json
+
+# HTTP client configuration
+export HTTP_TIMEOUT=60s
+export HTTP_MAX_IDLE_CONNS=200
+export HTTP_MAX_CONNS_PER_HOST=20
+export HTTP_IDLE_CONN_TIMEOUT=120s
+export HTTP_DISABLE_KEEP_ALIVES=false
+export HTTP_INSECURE_SKIP_VERIFY=false
+
+# Logging configuration
 export LOG_LEVEL=debug
 ```
 

@@ -140,9 +140,11 @@ func TestRunCommand_SuccessfulStartup(t *testing.T) {
 				"get": map[string]interface{}{
 					"operationId": "test-get",
 					"x-opengate": map[string]interface{}{
-						"type": "forward",
-						"options": map[string]string{
-							"url": backend.URL,
+						"handler": map[string]interface{}{
+							"type": "forward",
+							"options": map[string]string{
+								"url": backend.URL,
+							},
 						},
 					},
 				},

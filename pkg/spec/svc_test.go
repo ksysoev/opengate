@@ -26,15 +26,19 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "get-users",
 							"x-opengate": {
-								"type": "forward",
-								"options": {"url": "http://backend.com"}
+								"handler": {
+									"type": "forward",
+									"options": {"url": "http://backend.com"}
+								}
 							}
 						},
 						"post": {
 							"operationId": "create-user",
 							"x-opengate": {
-								"type": "forward",
-								"options": {"url": "http://backend.com"}
+								"handler": {
+									"type": "forward",
+									"options": {"url": "http://backend.com"}
+								}
 							}
 						}
 					},
@@ -42,8 +46,10 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "get-user",
 							"x-opengate": {
-								"type": "forward",
-								"options": {"url": "http://backend.com"}
+								"handler": {
+									"type": "forward",
+									"options": {"url": "http://backend.com"}
+								}
 							}
 						}
 					}
@@ -62,10 +68,12 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "redirect-old-path",
 							"x-opengate": {
-								"type": "redirect",
-								"options": {
-									"location": "https://example.com/new-path",
-									"status_code": 301
+								"handler": {
+									"type": "redirect",
+									"options": {
+										"location": "https://example.com/new-path",
+										"status_code": 301
+									}
 								}
 							}
 						}
@@ -85,8 +93,10 @@ func TestParser_Parse(t *testing.T) {
 						"get": {
 							"operationId": "get-users",
 							"x-opengate": {
-								"type": "invalid-type",
-								"options": {"url": "http://backend.com"}
+								"handler": {
+									"type": "invalid-type",
+									"options": {"url": "http://backend.com"}
+								}
 							}
 						}
 					}
@@ -158,9 +168,11 @@ func TestParser_CreateRoute(t *testing.T) {
 			operation: &Operation{
 				OperationID: "get-users",
 				XOpenGate: &OpenGateExt{
-					Type: "forward",
-					Options: HandlerOptions{
-						URL: "http://backend.com",
+					Handler: Handler{
+						Type: "forward",
+						Options: HandlerOptions{
+							URL: "http://backend.com",
+						},
 					},
 				},
 			},
@@ -176,10 +188,12 @@ func TestParser_CreateRoute(t *testing.T) {
 			operation: &Operation{
 				OperationID: "redirect-old",
 				XOpenGate: &OpenGateExt{
-					Type: "redirect",
-					Options: HandlerOptions{
-						Location:   "https://example.com/new-path",
-						StatusCode: 301,
+					Handler: Handler{
+						Type: "redirect",
+						Options: HandlerOptions{
+							Location:   "https://example.com/new-path",
+							StatusCode: 301,
+						},
 					},
 				},
 			},
@@ -208,9 +222,11 @@ func TestParser_CreateRoute(t *testing.T) {
 			operation: &Operation{
 				OperationID: "test-op",
 				XOpenGate: &OpenGateExt{
-					Type: "unknown-type",
-					Options: HandlerOptions{
-						URL: "http://backend.com",
+					Handler: Handler{
+						Type: "unknown-type",
+						Options: HandlerOptions{
+							URL: "http://backend.com",
+						},
 					},
 				},
 			},

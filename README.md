@@ -72,8 +72,9 @@ Create an OpenAPI specification file `gateway.json`:
         "operationId": "get-users",
         "x-opengate": {
           "handler": {
+            "type": "forward",
             "options": {
-              "baseUrl": "http://localhost:3000"
+              "url": "http://localhost:3000"
             }
           }
         }
@@ -85,8 +86,9 @@ Create an OpenAPI specification file `gateway.json`:
         "operationId": "get-user",
         "x-opengate": {
           "handler": {
+            "type": "forward",
             "options": {
-              "baseUrl": "http://localhost:3000"
+              "url": "http://localhost:3000"
             }
           }
         }
@@ -122,8 +124,9 @@ OpenGate uses the `x-opengate` extension in your OpenAPI specification to config
         "operationId": "unique-operation-id",
         "x-opengate": {
           "handler": {
+            "type": "forward",
             "options": {
-              "baseUrl": "http://your-backend-service:8080"
+              "url": "http://your-backend-service:8080"
             }
           }
         }
@@ -156,8 +159,9 @@ OpenGate fully supports OpenAPI path parameters:
         ],
         "x-opengate": {
           "handler": {
+            type: forward,
             "options": {
-              "baseUrl": "http://backend:3000"
+              "url": "http://backend:3000"
             }
           }
         }

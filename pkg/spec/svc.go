@@ -41,9 +41,13 @@ type Operation struct {
 
 // OpenGateExt represents the OpenGate-specific routing configuration extension.
 type OpenGateExt struct {
-	Type     string         `json:"type"`
-	Options  HandlerOptions `json:"options"`
-	Policies []string       `json:"policies,omitempty"`
+	Handler  Handler  `json:"handler"`
+	Policies []string `json:"policies,omitempty"`
+}
+
+type Handler struct {
+	Type    string         `json:"type"`
+	Options HandlerOptions `json:"options"`
 }
 
 // HandlerOptions represents the handler options.
@@ -158,19 +162,19 @@ func (p *Parser) createRoute(path, method string, op *Operation) (route.Route, e
 
 	if op.XOpenGate != nil {
 		handler := route.Handler{
-			Type: op.XOpenGate.Type,
+			Type: op.XOpenGate.Handler.Type,
 		}
 
-		switch op.XOpenGate.Type {
+		switch op.XOpenGate.Handler.Type {
 		case "forward":
-			handler.BaseURL = op.XOpenGate.Options.URL
+			handler.BaseURL = op.XOpenGate.Handler.Options.URL
 		case "redirect":
-			handler.Location = op.XOpenGate.Options.Location
-			handler.StatusCode = op.XOpenGate.Options.StatusCode
+			handler.Location = op.XOpenGate.Handler.Options.Location
+			handler.StatusCode = op.XOpenGate.Handler.Options.StatusCode
 		default:
 			return route.Route{}, fmt.Errorf(
 				"unknown handler type %q for operation %q (%s %s)",
-				op.XOpenGate.Type, op.OperationID, method, path)
+				op.XOpenGate.Handler.Type, op.OperationID, method, path)
 		}
 
 		r.Handler = handler
